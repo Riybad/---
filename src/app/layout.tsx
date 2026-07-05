@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "الإدارة المالية للمركز",
+  title: "طُود — الإدارة المالية",
   description: "نظام إدارة الإيرادات والمصروفات والعهد",
 };
 

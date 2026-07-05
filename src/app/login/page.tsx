@@ -6,10 +6,12 @@ import { login } from "@/app/actions";
 export default function LoginPage() {
   const [error, action, pending] = useActionState(login, null);
   return (
-    <main className="flex min-h-screen items-center justify-center p-4">
-      <form action={action} className="card w-full max-w-sm p-8">
-        <h1 className="mb-1 text-xl font-bold">الإدارة المالية للمركز</h1>
-        <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
+    <main className="sunny sunny-bg flex min-h-screen items-center justify-center p-4">
+      <form action={action} className="card sunny-card w-full max-w-sm p-8">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="شعار طُود" className="mx-auto mb-4 h-20 w-auto" />
+        <h1 className="page-title mb-1 text-center text-xl">الإدارة المالية</h1>
+        <p className="mb-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
           تسجيل دخول المشرف
         </p>
         <label className="label" htmlFor="password">

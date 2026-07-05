@@ -27,7 +27,7 @@ export default async function CustodiesPage({
 
   return (
     <main className="space-y-6">
-      <h1 className="text-xl font-bold">العهد</h1>
+      <h1 className="page-title text-xl">العهد</h1>
 
       <div className="flex flex-wrap gap-2">
         {FILTERS.map((f) => {

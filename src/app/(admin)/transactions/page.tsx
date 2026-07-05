@@ -12,7 +12,7 @@ export default function TransactionsPage() {
 
   return (
     <main className="space-y-6">
-      <h1 className="text-xl font-bold">الإيرادات والمصروفات</h1>
+      <h1 className="page-title text-xl">الإيرادات والمصروفات</h1>
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="card p-5">

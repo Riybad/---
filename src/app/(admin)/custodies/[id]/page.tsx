@@ -45,7 +45,7 @@ export default async function CustodyDetailPage({
   return (
     <main className="mx-auto max-w-3xl space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-xl font-bold">عهدة رقم {custody.id} — {custody.name}</h1>
+        <h1 className="page-title text-xl">عهدة رقم {custody.id} — {custody.name}</h1>
         <span className={STATUS_STYLE[custody.status]}>{STATUS_LABEL[custody.status]}</span>
       </div>
 

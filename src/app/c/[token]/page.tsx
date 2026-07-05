@@ -18,8 +18,10 @@ export default async function ClosurePage({
   if (!custody) notFound();
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-lg items-center p-4">
-      <div className="card w-full p-8">
+    <main className="sunny sunny-bg flex min-h-screen items-center justify-center p-4">
+      <div className="card sunny-card w-full max-w-lg p-8">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png" alt="شعار طُود" className="mx-auto mb-4 h-20 w-auto" />
         {done || custody.status === "pending_close" || custody.status === "closed" ? (
           <div className="text-center">
             <p className="text-4xl">✅</p>
@@ -41,8 +43,8 @@ export default async function ClosurePage({
           </div>
         ) : (
           <>
-            <h1 className="mb-1 text-xl font-bold">إقفال عهدة — {custody.name}</h1>
-            <p className="mb-6 text-sm" style={{ color: "var(--text-muted)" }}>
+            <h1 className="page-title mb-1 text-center text-xl">إقفال عهدة — {custody.name}</h1>
+            <p className="mb-6 text-center text-sm" style={{ color: "var(--brand-orange)" }}>
               المبلغ المصروف: {money(custody.amount)} · بتاريخ {fmtDate(custody.disbursed_at)}
               <br />
               أدخل تفاصيل كل فاتورة وأرفقها بصيغة PDF

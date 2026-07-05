@@ -10,8 +10,10 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         className="mb-6 flex flex-wrap items-center gap-4 border-b py-4"
         style={{ borderColor: "var(--hairline)" }}
       >
-        <Link href="/" className="text-lg font-bold">
-          الإدارة المالية للمركز
+        <Link href="/" className="flex items-center gap-3">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/logo.png" alt="شعار طُود" className="h-11 w-auto" />
+          <span className="text-lg font-bold">الإدارة المالية</span>
         </Link>
         <nav className="flex gap-1 text-sm font-semibold">
           <Link href="/" className="rounded-lg px-3 py-1.5 hover:underline">
