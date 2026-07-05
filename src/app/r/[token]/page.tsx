@@ -32,7 +32,7 @@ export default async function RequestPage({
           <>
             <h1 className="page-title mb-1 text-center text-xl">طلب عهدة مالية</h1>
             <p className="mb-6 text-center text-sm" style={{ color: "var(--brand-orange)" }}>
-              عبّئ البيانات التالية وسيراجع طلبك المسؤول المالي
+              ادخل البيانات التالية
             </p>
             <RequestForm token={token} />
           </>

@@ -12,6 +12,8 @@ export function money(n: number | null | undefined): string {
 
 export function fmtDate(d: string | null | undefined): string {
   if (!d) return "—";
+  // التواريخ الهجرية مخزنة كنص جاهز للعرض (مثل: 15 محرم 1447هـ)
+  if (d.includes("هـ")) return d;
   return d.slice(0, 10);
 }
 

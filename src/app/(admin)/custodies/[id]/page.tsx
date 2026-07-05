@@ -53,6 +53,7 @@ export default async function CustodyDetailPage({
         <Field label="الاسم" value={custody.name} />
         <Field label="رقم الجوال" value={custody.phone || "—"} ltr />
         <Field label="تاريخ الطلب" value={fmtDate(custody.request_date)} />
+        <Field label="المرحلة" value={custody.stage || "—"} />
         <Field label="المبلغ المطلوب" value={money(custody.requested_amount)} />
         <Field label="المبلغ المصروف" value={money(custody.amount)} />
         <Field label="تاريخ الصرف" value={fmtDate(custody.disbursed_at)} />

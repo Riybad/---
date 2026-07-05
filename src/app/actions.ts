@@ -13,6 +13,7 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { db, getRequestToken, newCloseToken, UPLOADS_DIR, type Custody } from "@/lib/db";
+import { composeHijri, STAGES } from "@/lib/hijri";
 
 // ---------- الدخول والخروج ----------
 
@@ -121,13 +122,18 @@ export async function createCustodyManual(formData: FormData) {
   const phone = String(formData.get("phone") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   const requested = Number(formData.get("requested_amount"));
-  const date = String(formData.get("request_date") ?? "").slice(0, 10);
-  if (!name || !reason || !date) return;
+  const stage = String(formData.get("stage") ?? "");
+  const date = composeHijri(
+    Number(formData.get("hijri_day")),
+    Number(formData.get("hijri_month")),
+    Number(formData.get("hijri_year"))
+  );
+  if (!name || !reason || !date || !STAGES.includes(stage)) return;
   const info = db()
     .prepare(
-      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, close_token) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    .run(name, phone, reason, requested > 0 ? requested : null, date, newCloseToken());
+    .run(name, phone, reason, requested > 0 ? requested : null, date, stage, newCloseToken());
   revalidatePath("/", "layout");
   redirect(`/custodies/${info.lastInsertRowid}`);
 }
@@ -205,13 +211,20 @@ export async function submitRequest(
   const phone = String(formData.get("phone") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
   const requested = Number(formData.get("requested_amount"));
-  const date = String(formData.get("request_date") ?? "").slice(0, 10);
+  const stage = String(formData.get("stage") ?? "");
+  const date = composeHijri(
+    Number(formData.get("hijri_day")),
+    Number(formData.get("hijri_month")),
+    Number(formData.get("hijri_year"))
+  );
   if (!name || !phone || !reason || !date) return "فضلًا عبّئ جميع الحقول المطلوبة";
+  if (!STAGES.includes(stage)) return "فضلًا اختر المرحلة";
+  if (!(requested > 0)) return "فضلًا أدخل المبلغ المطلوب";
   db()
     .prepare(
-      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, close_token) VALUES (?, ?, ?, ?, ?, ?)"
+      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES (?, ?, ?, ?, ?, ?, ?)"
     )
-    .run(name, phone, reason, requested > 0 ? requested : null, date, newCloseToken());
+    .run(name, phone, reason, requested, date, stage, newCloseToken());
   redirect(`/r/${token}?done=1`);
 }
 

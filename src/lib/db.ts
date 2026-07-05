@@ -35,6 +35,7 @@ export function db(): Database.Database {
       requested_amount REAL,
       amount REAL,
       request_date TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT '',
       status TEXT NOT NULL DEFAULT 'pending'
         CHECK (status IN ('pending','open','pending_close','closed','rejected')),
       close_token TEXT NOT NULL UNIQUE,
@@ -53,6 +54,10 @@ export function db(): Database.Database {
       created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
+  const custodyCols = _db.pragma("table_info(custodies)") as { name: string }[];
+  if (!custodyCols.some((c) => c.name === "stage")) {
+    _db.exec("ALTER TABLE custodies ADD COLUMN stage TEXT NOT NULL DEFAULT ''");
+  }
   return _db;
 }
 
@@ -101,6 +106,7 @@ export type Custody = {
   requested_amount: number | null;
   amount: number | null;
   request_date: string;
+  stage: string;
   status: CustodyStatus;
   close_token: string;
   admin_notes: string;

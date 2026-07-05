@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { createCustodyManual } from "@/app/actions";
+import HijriDateFields from "@/components/HijriDateFields";
+import { STAGES } from "@/lib/hijri";
 import type { CustodyStatus } from "@/lib/db";
 import { money, fmtDate, STATUS_LABEL, STATUS_STYLE } from "@/lib/format";
 import { listCustodies } from "@/lib/queries";
@@ -23,7 +25,6 @@ export default async function CustodiesPage({
   const { status } = await searchParams;
   const valid = FILTERS.some((f) => f.key === status) ? status : undefined;
   const custodies = listCustodies(valid || undefined);
-  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <main className="space-y-6">
@@ -57,6 +58,7 @@ export default async function CustodiesPage({
                 <th>الاسم</th>
                 <th>الجوال</th>
                 <th>السبب</th>
+                <th>المرحلة</th>
                 <th>المبلغ</th>
                 <th>الحالة</th>
                 <th>التاريخ</th>
@@ -65,7 +67,7 @@ export default async function CustodiesPage({
             <tbody>
               {custodies.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="text-center">
+                  <td colSpan={8} className="text-center">
                     لا توجد عهد بهذا الفلتر
                   </td>
                 </tr>
@@ -88,6 +90,7 @@ export default async function CustodiesPage({
                   <td className="max-w-56 truncate" title={c.reason}>
                     {c.reason}
                   </td>
+                  <td>{c.stage || "—"}</td>
                   <td className="num">{money(c.amount ?? c.requested_amount)}</td>
                   <td>
                     <span className={STATUS_STYLE[c.status as CustodyStatus]}>
@@ -118,12 +121,25 @@ export default async function CustodiesPage({
             <input name="reason" className="input" required />
           </div>
           <div>
-            <label className="label">المبلغ المطلوب (ر.س)</label>
-            <input name="requested_amount" type="number" step="0.01" min="0" className="input" />
+            <label className="label">المرحلة</label>
+            <select name="stage" className="input" required defaultValue="">
+              <option value="" disabled>
+                اختر المرحلة
+              </option>
+              {STAGES.map((s) => (
+                <option key={s} value={s}>
+                  {s}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <label className="label">التاريخ</label>
-            <input name="request_date" type="date" className="input" defaultValue={today} required />
+            <label className="label">المبلغ المطلوب</label>
+            <input name="requested_amount" type="number" step="0.01" min="0" className="input" />
+          </div>
+          <div className="col-span-2">
+            <label className="label">التاريخ (هجري)</label>
+            <HijriDateFields />
           </div>
           <div className="col-span-2">
             <button className="btn btn-primary">تسجيل الطلب</button>
