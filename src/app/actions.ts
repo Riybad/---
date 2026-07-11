@@ -223,6 +223,27 @@ export async function submitRequest(
   redirect(`/r/${token}?done=1`);
 }
 
+/** يبحث عن عهدة الموظف عبر رقم جواله ويحوّله لصفحة الإقفال */
+export async function findClosureByPhone(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  const token = String(formData.get("token") ?? "");
+  if (token !== (await getRequestToken())) return "الرابط غير صالح";
+  const phone = String(formData.get("phone") ?? "").replace(/\D/g, "");
+  if (phone.length < 9) return "فضلًا أدخل رقم الجوال كاملًا";
+  const suffix = phone.slice(-9);
+  const custodies = (await q(
+    "SELECT close_token, phone, status FROM custodies WHERE status IN ('open','pending_close') ORDER BY id DESC"
+  )) as { close_token: string; phone: string; status: string }[];
+  const mine = custodies.filter((c) => c.phone.replace(/\D/g, "").slice(-9) === suffix);
+  if (mine.length === 0)
+    return "ما وجدنا عهدة مفتوحة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة المالية";
+  const open = mine.find((c) => c.status === "open");
+  if (!open) return "عهدتك مرفوعة وبانتظار اعتماد الإقفال من الإدارة المالية";
+  redirect(`/c/${open.close_token}`);
+}
+
 const MAX_PDF_BYTES = 10 * 1024 * 1024;
 
 export async function submitClosure(
