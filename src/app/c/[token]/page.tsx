@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import ClosureForm from "@/components/ClosureForm";
 import { money, fmtDate, STATUS_LABEL } from "@/lib/format";
 import { getCustodyByCloseToken } from "@/lib/queries";
+import { blobEnabled } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -14,7 +15,7 @@ export default async function ClosurePage({
 }) {
   const { token } = await params;
   const { done } = await searchParams;
-  const custody = getCustodyByCloseToken(token);
+  const custody = await getCustodyByCloseToken(token);
   if (!custody) notFound();
 
   return (
@@ -49,7 +50,7 @@ export default async function ClosurePage({
               <br />
               أدخل تفاصيل كل فاتورة وأرفقها بصيغة PDF
             </p>
-            <ClosureForm token={token} />
+            <ClosureForm token={token} uploadMode={blobEnabled() ? "blob" : "local"} />
           </>
         )}
       </div>

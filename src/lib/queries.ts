@@ -1,24 +1,20 @@
-import { db, type Custody, type Invoice, type Transaction } from "./db";
+import { q, type Custody, type Invoice, type Transaction } from "./db";
 
-export function getTotals() {
-  const row = db()
-    .prepare(
-      `SELECT
-        COALESCE(SUM(CASE WHEN type = 'revenue' THEN amount END), 0) AS revenue,
-        COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0) AS expense
-      FROM transactions`
-    )
-    .get() as { revenue: number; expense: number };
-  return row;
+export async function getTotals(): Promise<{ revenue: number; expense: number }> {
+  const rows = await q(
+    `SELECT
+      COALESCE(SUM(CASE WHEN type = 'revenue' THEN amount END), 0)::float8 AS revenue,
+      COALESCE(SUM(CASE WHEN type = 'expense' THEN amount END), 0)::float8 AS expense
+    FROM transactions`
+  );
+  return rows[0] as { revenue: number; expense: number };
 }
 
-export function getCustodyStats() {
-  const rows = db()
-    .prepare(
-      `SELECT status, COUNT(*) AS count, COALESCE(SUM(amount), 0) AS amount
-       FROM custodies GROUP BY status`
-    )
-    .all() as { status: string; count: number; amount: number }[];
+export async function getCustodyStats() {
+  const rows = (await q(
+    `SELECT status, COUNT(*)::int AS count, COALESCE(SUM(amount), 0)::float8 AS amount
+     FROM custodies GROUP BY status`
+  )) as { status: string; count: number; amount: number }[];
   const stat = (s: string) => rows.find((r) => r.status === s) ?? { count: 0, amount: 0 };
   return {
     pending: stat("pending"),
@@ -28,42 +24,47 @@ export function getCustodyStats() {
   };
 }
 
-export function listTransactions(limit?: number): Transaction[] {
-  const sql = `SELECT * FROM transactions ORDER BY date DESC, id DESC ${limit ? "LIMIT ?" : ""}`;
-  return (limit ? db().prepare(sql).all(limit) : db().prepare(sql).all()) as Transaction[];
+export async function listTransactions(limit?: number): Promise<Transaction[]> {
+  if (limit) {
+    return (await q("SELECT * FROM transactions ORDER BY date DESC, id DESC LIMIT $1", [
+      limit,
+    ])) as Transaction[];
+  }
+  return (await q("SELECT * FROM transactions ORDER BY date DESC, id DESC")) as Transaction[];
 }
 
-export function listCustodies(status?: string, limit?: number): Custody[] {
+export async function listCustodies(status?: string, limit?: number): Promise<Custody[]> {
   let sql = "SELECT * FROM custodies";
   const params: (string | number)[] = [];
   if (status) {
-    sql += " WHERE status = ?";
     params.push(status);
+    sql += ` WHERE status = $${params.length}`;
   }
   sql += " ORDER BY id DESC";
   if (limit) {
-    sql += " LIMIT ?";
     params.push(limit);
+    sql += ` LIMIT $${params.length}`;
   }
-  return db().prepare(sql).all(...params) as Custody[];
+  return (await q(sql, params)) as Custody[];
 }
 
-export function getCustody(id: number): Custody | undefined {
-  return db().prepare("SELECT * FROM custodies WHERE id = ?").get(id) as Custody | undefined;
+export async function getCustody(id: number): Promise<Custody | undefined> {
+  const rows = await q("SELECT * FROM custodies WHERE id = $1", [id]);
+  return rows[0] as Custody | undefined;
 }
 
-export function getCustodyByCloseToken(token: string): Custody | undefined {
-  return db().prepare("SELECT * FROM custodies WHERE close_token = ?").get(token) as
-    | Custody
-    | undefined;
+export async function getCustodyByCloseToken(token: string): Promise<Custody | undefined> {
+  const rows = await q("SELECT * FROM custodies WHERE close_token = $1", [token]);
+  return rows[0] as Custody | undefined;
 }
 
-export function listInvoices(custodyId: number): Invoice[] {
-  return db()
-    .prepare("SELECT * FROM invoices WHERE custody_id = ? ORDER BY id")
-    .all(custodyId) as Invoice[];
+export async function listInvoices(custodyId: number): Promise<Invoice[]> {
+  return (await q("SELECT * FROM invoices WHERE custody_id = $1 ORDER BY id", [
+    custodyId,
+  ])) as Invoice[];
 }
 
-export function getInvoice(id: number): Invoice | undefined {
-  return db().prepare("SELECT * FROM invoices WHERE id = ?").get(id) as Invoice | undefined;
+export async function getInvoice(id: number): Promise<Invoice | undefined> {
+  const rows = await q("SELECT * FROM invoices WHERE id = $1", [id]);
+  return rows[0] as Invoice | undefined;
 }

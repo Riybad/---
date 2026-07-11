@@ -10,8 +10,9 @@ export function money(n: number | null | undefined): string {
   return `${moneyFmt.format(n)} ر.س`;
 }
 
-export function fmtDate(d: string | null | undefined): string {
+export function fmtDate(d: string | Date | null | undefined): string {
   if (!d) return "—";
+  if (d instanceof Date) return d.toISOString().slice(0, 10);
   // التواريخ الهجرية مخزنة كنص جاهز للعرض (مثل: 15 محرم 1447هـ)
   if (d.includes("هـ")) return d;
   return d.slice(0, 10);

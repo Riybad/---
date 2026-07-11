@@ -38,15 +38,15 @@ function StatTile({
 }
 
 export default async function DashboardPage() {
-  const totals = getTotals();
-  const custody = getCustodyStats();
-  const recentCustodies = listCustodies(undefined, 6);
-  const recentTx = listTransactions(6);
+  const totals = await getTotals();
+  const custody = await getCustodyStats();
+  const recentCustodies = await listCustodies(undefined, 6);
+  const recentTx = await listTransactions(6);
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  const requestUrl = `${proto}://${host}/r/${getRequestToken()}`;
+  const requestUrl = `${proto}://${host}/r/${await getRequestToken()}`;
 
   const net = totals.revenue - totals.expense;
 

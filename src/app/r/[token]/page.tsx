@@ -13,7 +13,7 @@ export default async function RequestPage({
 }) {
   const { token } = await params;
   const { done } = await searchParams;
-  if (token !== getRequestToken()) notFound();
+  if (token !== (await getRequestToken())) notFound();
 
   return (
     <main className="sunny sunny-bg flex min-h-screen items-center justify-center p-4">

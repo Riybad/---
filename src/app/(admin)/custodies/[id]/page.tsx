@@ -32,9 +32,9 @@ export default async function CustodyDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const custody = getCustody(Number(id));
+  const custody = await getCustody(Number(id));
   if (!custody) notFound();
-  const invoices = listInvoices(custody.id);
+  const invoices = await listInvoices(custody.id);
   const invoicesTotal = invoices.reduce((s, i) => s + i.amount, 0);
 
   const h = await headers();

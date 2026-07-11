@@ -1,32 +1,21 @@
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import { DATA_DIR } from "./db";
 
 const SESSION_COOKIE = "session";
-
-function secret(): string {
-  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
-  const keyFile = path.join(DATA_DIR, "secret.key");
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  if (!fs.existsSync(keyFile)) {
-    fs.writeFileSync(keyFile, crypto.randomBytes(32).toString("hex"), { mode: 0o600 });
-  }
-  return fs.readFileSync(keyFile, "utf8").trim();
-}
-
-function sign(value: string): string {
-  return crypto.createHmac("sha256", secret()).update(value).digest("hex");
-}
 
 export function adminPassword(): string {
   return process.env.ADMIN_PASSWORD || "admin123";
 }
 
+/** مفتاح توقيع الجلسات: من AUTH_SECRET إن وُجد، وإلا يُشتق من كلمة المرور */
+function secret(): string {
+  if (process.env.AUTH_SECRET) return process.env.AUTH_SECRET;
+  return crypto.createHash("sha256").update(`tood-session-key:${adminPassword()}`).digest("hex");
+}
+
 export function sessionToken(): string {
-  return sign("admin-session");
+  return crypto.createHmac("sha256", secret()).update("admin-session").digest("hex");
 }
 
 export async function isLoggedIn(): Promise<boolean> {

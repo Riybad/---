@@ -5,9 +5,9 @@ import { getTotals, listTransactions } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export default function TransactionsPage() {
-  const transactions = listTransactions();
-  const totals = getTotals();
+export default async function TransactionsPage() {
+  const transactions = await listTransactions();
+  const totals = await getTotals();
   const today = new Date().toISOString().slice(0, 10);
 
   return (

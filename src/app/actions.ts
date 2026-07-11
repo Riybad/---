@@ -1,8 +1,6 @@
 "use server";
 
 import crypto from "crypto";
-import fs from "fs";
-import path from "path";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import * as XLSX from "xlsx";
@@ -12,8 +10,13 @@ import {
   destroySession,
   requireAdmin,
 } from "@/lib/auth";
-import { db, getRequestToken, newCloseToken, UPLOADS_DIR, type Custody } from "@/lib/db";
+import { q, getRequestToken, newCloseToken, type Custody } from "@/lib/db";
 import { composeHijri, STAGES } from "@/lib/hijri";
+import {
+  deleteInvoiceFile,
+  isValidBlobUrl,
+  saveInvoicePdfLocally,
+} from "@/lib/storage";
 
 // ---------- الدخول والخروج ----------
 
@@ -44,18 +47,17 @@ export async function addTransaction(formData: FormData) {
   const category = String(formData.get("category") ?? "").trim();
   const date = String(formData.get("date") ?? "").slice(0, 10);
   if (!["revenue", "expense"].includes(type) || !(amount > 0) || !description || !date) return;
-  db()
-    .prepare(
-      "INSERT INTO transactions (type, amount, description, category, date) VALUES (?, ?, ?, ?, ?)"
-    )
-    .run(type, amount, description, category, date);
+  await q(
+    "INSERT INTO transactions (type, amount, description, category, date) VALUES ($1, $2, $3, $4, $5)",
+    [type, amount, description, category, date]
+  );
   revalidatePath("/", "layout");
 }
 
 export async function deleteTransaction(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  db().prepare("DELETE FROM transactions WHERE id = ?").run(id);
+  await q("DELETE FROM transactions WHERE id = $1", [id]);
   revalidatePath("/", "layout");
 }
 
@@ -74,42 +76,38 @@ export async function importExcel(
 
   const pick = (row: Record<string, unknown>, keys: string[]): string => {
     for (const k of Object.keys(row)) {
-      const norm = k.trim();
-      if (keys.includes(norm)) return String(row[k] ?? "").trim();
+      if (keys.includes(k.trim())) return String(row[k] ?? "").trim();
     }
     return "";
   };
 
-  const insert = db().prepare(
-    "INSERT INTO transactions (type, amount, description, category, date) VALUES (?, ?, ?, ?, ?)"
-  );
   let ok = 0;
   let skipped = 0;
-  const tx = db().transaction(() => {
-    for (const row of rows) {
-      const typeRaw = pick(row, ["النوع", "type", "Type"]);
-      const type = /إيراد|ايراد|revenue|income/i.test(typeRaw)
-        ? "revenue"
-        : /مصروف|expense/i.test(typeRaw)
-          ? "expense"
-          : null;
-      const amount = Number(pick(row, ["المبلغ", "amount", "Amount"]).replace(/[,،]/g, ""));
-      const description = pick(row, ["الوصف", "البيان", "description", "Description"]);
-      const category = pick(row, ["التصنيف", "category", "Category"]);
-      let date = pick(row, ["التاريخ", "date", "Date"]);
-      const parsed = new Date(date);
-      if (!isNaN(parsed.getTime())) {
-        date = parsed.toISOString().slice(0, 10);
-      }
-      if (!type || !(amount > 0) || !description || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-        skipped++;
-        continue;
-      }
-      insert.run(type, amount, description, category, date);
-      ok++;
+  for (const row of rows) {
+    const typeRaw = pick(row, ["النوع", "type", "Type"]);
+    const type = /إيراد|ايراد|revenue|income/i.test(typeRaw)
+      ? "revenue"
+      : /مصروف|expense/i.test(typeRaw)
+        ? "expense"
+        : null;
+    const amount = Number(pick(row, ["المبلغ", "amount", "Amount"]).replace(/[,،]/g, ""));
+    const description = pick(row, ["الوصف", "البيان", "description", "Description"]);
+    const category = pick(row, ["التصنيف", "category", "Category"]);
+    let date = pick(row, ["التاريخ", "date", "Date"]);
+    const parsed = new Date(date);
+    if (!isNaN(parsed.getTime())) {
+      date = parsed.toISOString().slice(0, 10);
     }
-  });
-  tx();
+    if (!type || !(amount > 0) || !description || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      skipped++;
+      continue;
+    }
+    await q(
+      "INSERT INTO transactions (type, amount, description, category, date) VALUES ($1, $2, $3, $4, $5)",
+      [type, amount, description, category, date]
+    );
+    ok++;
+  }
   revalidatePath("/", "layout");
   return { ok, skipped };
 }
@@ -129,13 +127,12 @@ export async function createCustodyManual(formData: FormData) {
     Number(formData.get("hijri_year"))
   );
   if (!name || !reason || !date || !STAGES.includes(stage)) return;
-  const info = db()
-    .prepare(
-      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    )
-    .run(name, phone, reason, requested > 0 ? requested : null, date, stage, newCloseToken());
+  const rows = await q(
+    "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id",
+    [name, phone, reason, requested > 0 ? requested : null, date, stage, newCloseToken()]
+  );
   revalidatePath("/", "layout");
-  redirect(`/custodies/${info.lastInsertRowid}`);
+  redirect(`/custodies/${rows[0].id}`);
 }
 
 export async function disburseCustody(formData: FormData) {
@@ -144,31 +141,27 @@ export async function disburseCustody(formData: FormData) {
   const amount = Number(formData.get("amount"));
   const notes = String(formData.get("admin_notes") ?? "").trim();
   if (!(amount > 0)) return;
-  db()
-    .prepare(
-      "UPDATE custodies SET status = 'open', amount = ?, admin_notes = ?, disbursed_at = datetime('now') WHERE id = ? AND status = 'pending'"
-    )
-    .run(amount, notes, id);
+  await q(
+    "UPDATE custodies SET status = 'open', amount = $1, admin_notes = $2, disbursed_at = now() WHERE id = $3 AND status = 'pending'",
+    [amount, notes, id]
+  );
   revalidatePath("/", "layout");
 }
 
 export async function rejectCustody(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  db()
-    .prepare("UPDATE custodies SET status = 'rejected' WHERE id = ? AND status = 'pending'")
-    .run(id);
+  await q("UPDATE custodies SET status = 'rejected' WHERE id = $1 AND status = 'pending'", [id]);
   revalidatePath("/", "layout");
 }
 
 export async function approveClose(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  db()
-    .prepare(
-      "UPDATE custodies SET status = 'closed', closed_at = datetime('now') WHERE id = ? AND status = 'pending_close'"
-    )
-    .run(id);
+  await q(
+    "UPDATE custodies SET status = 'closed', closed_at = now() WHERE id = $1 AND status = 'pending_close'",
+    [id]
+  );
   revalidatePath("/", "layout");
 }
 
@@ -176,15 +169,13 @@ export async function approveClose(formData: FormData) {
 export async function reopenCustody(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  const invoices = db()
-    .prepare("SELECT file_path FROM invoices WHERE custody_id = ?")
-    .all(id) as { file_path: string }[];
-  db().prepare("DELETE FROM invoices WHERE custody_id = ?").run(id);
-  db()
-    .prepare("UPDATE custodies SET status = 'open' WHERE id = ? AND status = 'pending_close'")
-    .run(id);
+  const invoices = (await q("SELECT file_path FROM invoices WHERE custody_id = $1", [id])) as {
+    file_path: string;
+  }[];
+  await q("DELETE FROM invoices WHERE custody_id = $1", [id]);
+  await q("UPDATE custodies SET status = 'open' WHERE id = $1 AND status = 'pending_close'", [id]);
   for (const inv of invoices) {
-    fs.rmSync(path.join(UPLOADS_DIR, inv.file_path), { force: true });
+    await deleteInvoiceFile(inv.file_path);
   }
   revalidatePath("/", "layout");
 }
@@ -192,9 +183,14 @@ export async function reopenCustody(formData: FormData) {
 export async function deleteCustody(formData: FormData) {
   await requireAdmin();
   const id = Number(formData.get("id"));
-  db().prepare("DELETE FROM invoices WHERE custody_id = ?").run(id);
-  db().prepare("DELETE FROM custodies WHERE id = ?").run(id);
-  fs.rmSync(path.join(UPLOADS_DIR, String(id)), { recursive: true, force: true });
+  const invoices = (await q("SELECT file_path FROM invoices WHERE custody_id = $1", [id])) as {
+    file_path: string;
+  }[];
+  await q("DELETE FROM invoices WHERE custody_id = $1", [id]);
+  await q("DELETE FROM custodies WHERE id = $1", [id]);
+  for (const inv of invoices) {
+    await deleteInvoiceFile(inv.file_path);
+  }
   revalidatePath("/", "layout");
   redirect("/custodies");
 }
@@ -206,7 +202,7 @@ export async function submitRequest(
   formData: FormData
 ): Promise<string | null> {
   const token = String(formData.get("token") ?? "");
-  if (token !== getRequestToken()) return "الرابط غير صالح";
+  if (token !== (await getRequestToken())) return "الرابط غير صالح";
   const name = String(formData.get("name") ?? "").trim();
   const phone = String(formData.get("phone") ?? "").trim();
   const reason = String(formData.get("reason") ?? "").trim();
@@ -220,11 +216,10 @@ export async function submitRequest(
   if (!name || !phone || !reason || !date) return "فضلًا عبّئ جميع الحقول المطلوبة";
   if (!STAGES.includes(stage)) return "فضلًا اختر المرحلة";
   if (!(requested > 0)) return "فضلًا أدخل المبلغ المطلوب";
-  db()
-    .prepare(
-      "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES (?, ?, ?, ?, ?, ?, ?)"
-    )
-    .run(name, phone, reason, requested, date, stage, newCloseToken());
+  await q(
+    "INSERT INTO custodies (name, phone, reason, requested_amount, request_date, stage, close_token) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+    [name, phone, reason, requested, date, stage, newCloseToken()]
+  );
   redirect(`/r/${token}?done=1`);
 }
 
@@ -235,39 +230,45 @@ export async function submitClosure(
   formData: FormData
 ): Promise<string | null> {
   const token = String(formData.get("token") ?? "");
-  const custody = db()
-    .prepare("SELECT * FROM custodies WHERE close_token = ? AND status = 'open'")
-    .get(token) as Custody | undefined;
+  const rows = await q("SELECT * FROM custodies WHERE close_token = $1 AND status = 'open'", [
+    token,
+  ]);
+  const custody = rows[0] as Custody | undefined;
   if (!custody) return "الرابط غير صالح أو العهدة ليست بحالة تسمح بالإقفال";
 
   const descriptions = formData.getAll("inv_description").map((v) => String(v).trim());
   const amounts = formData.getAll("inv_amount").map((v) => Number(v));
+  // الوضع السحابي: روابط ملفات مرفوعة مسبقًا من المتصفح — الوضع المحلي: الملفات نفسها
+  const urls = formData.getAll("inv_url").map((v) => String(v));
+  const names = formData.getAll("inv_name").map((v) => String(v));
   const files = formData.getAll("inv_file") as File[];
+  const usingUrls = urls.length > 0;
 
   if (descriptions.length === 0) return "أضف فاتورة واحدة على الأقل";
   for (let i = 0; i < descriptions.length; i++) {
-    const f = files[i];
     if (!descriptions[i] || !(amounts[i] > 0)) return `أكمل بيانات الفاتورة رقم ${i + 1}`;
-    if (!f || f.size === 0) return `أرفق ملف PDF للفاتورة رقم ${i + 1}`;
-    if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
-    const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-    if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
+    if (usingUrls) {
+      if (!isValidBlobUrl(urls[i])) return `ملف الفاتورة رقم ${i + 1} لم يُرفع بشكل صحيح`;
+    } else {
+      const f = files[i];
+      if (!f || f.size === 0) return `أرفق ملف PDF للفاتورة رقم ${i + 1}`;
+      if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
+    }
   }
 
-  const dir = path.join(UPLOADS_DIR, String(custody.id));
-  fs.mkdirSync(dir, { recursive: true });
-  const insert = db().prepare(
-    "INSERT INTO invoices (custody_id, description, amount, file_name, file_path) VALUES (?, ?, ?, ?, ?)"
-  );
   for (let i = 0; i < descriptions.length; i++) {
-    const f = files[i];
-    const stored = `${crypto.randomBytes(8).toString("hex")}.pdf`;
-    fs.writeFileSync(path.join(dir, stored), Buffer.from(await f.arrayBuffer()));
-    insert.run(custody.id, descriptions[i], amounts[i], f.name, `${custody.id}/${stored}`);
+    const filePath = usingUrls
+      ? urls[i]
+      : await saveInvoicePdfLocally(custody.id, files[i]);
+    const fileName = usingUrls ? names[i] || `invoice-${i + 1}.pdf` : files[i].name;
+    await q(
+      "INSERT INTO invoices (custody_id, description, amount, file_name, file_path) VALUES ($1, $2, $3, $4, $5)",
+      [custody.id, descriptions[i], amounts[i], fileName, filePath]
+    );
   }
-  db()
-    .prepare("UPDATE custodies SET status = 'pending_close' WHERE id = ?")
-    .run(custody.id);
+  await q("UPDATE custodies SET status = 'pending_close' WHERE id = $1", [custody.id]);
   revalidatePath("/", "layout");
   redirect(`/c/${token}?done=1`);
 }

@@ -24,7 +24,7 @@ export default async function CustodiesPage({
 }) {
   const { status } = await searchParams;
   const valid = FILTERS.some((f) => f.key === status) ? status : undefined;
-  const custodies = listCustodies(valid || undefined);
+  const custodies = await listCustodies(valid || undefined);
 
   return (
     <main className="space-y-6">
