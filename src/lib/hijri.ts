@@ -13,7 +13,7 @@ export const HIJRI_MONTHS = [
   "ذو الحجة",
 ];
 
-export const STAGES = ["ثانوي", "متوسط", "ابتدائي عليا", "ابتدائي دنيا"];
+export const STAGES = ["الإدارة", "متوسط", "ابتدائي عليا", "ابتدائي دنيا"];
 
 /** تاريخ اليوم بالتقويم الهجري (أم القرى) */
 export function todayHijri(): { day: number; month: number; year: number } {
