@@ -23,9 +23,9 @@ export default async function RequestPage({
         {done ? (
           <div className="text-center">
             <p className="text-4xl">✅</p>
-            <h1 className="mt-3 text-xl font-bold">تم استلام طلبك</h1>
+            <h1 className="mt-3 text-xl font-bold">تم رفع العهدة</h1>
             <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-              سيتم التواصل معك بعد مراجعة الطلب من الإدارة المالية.
+              سيتم التحويل قريبًا بإذن الله.
             </p>
           </div>
         ) : (
