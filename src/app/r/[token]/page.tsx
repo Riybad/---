@@ -63,7 +63,7 @@ export default async function RequestPage({
           <>
             <h1 className="page-title mb-2 text-center text-xl">العهد المالية</h1>
             <p className="mb-6 text-center text-sm" style={{ color: "var(--brand-orange)" }}>
-              وش تبي تسوي؟
+              {"هلا بالمُربّي (:"}
             </p>
             <div className="grid gap-3">
               <Link
