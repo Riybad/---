@@ -240,21 +240,25 @@ function collectInvoices(formData: FormData): string | InvoiceItem[] {
   const items: InvoiceItem[] = [];
   for (let i = 0; i < descriptions.length; i++) {
     if (!descriptions[i] || !(amounts[i] > 0)) return `أكمل بيانات الفاتورة رقم ${i + 1}`;
+    // ملف الفاتورة اختياري — يُقبل الصف ببياناته فقط
     if (usingUrls) {
-      if (!isValidBlobUrl(urls[i])) return `ملف الفاتورة رقم ${i + 1} لم يُرفع بشكل صحيح`;
+      if (urls[i] && !isValidBlobUrl(urls[i])) return `ملف الفاتورة رقم ${i + 1} لم يُرفع بشكل صحيح`;
       items.push({
         description: descriptions[i],
         amount: amounts[i],
-        url: urls[i],
-        name: names[i] || `invoice-${i + 1}.pdf`,
+        url: urls[i] || undefined,
+        name: urls[i] ? names[i] || `invoice-${i + 1}.pdf` : "",
       });
     } else {
       const f = files[i];
-      if (!f || f.size === 0) return `أرفق ملف PDF للفاتورة رقم ${i + 1}`;
-      if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
-      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-      if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
-      items.push({ description: descriptions[i], amount: amounts[i], file: f, name: f.name });
+      if (f && f.size > 0) {
+        if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
+        const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+        if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
+        items.push({ description: descriptions[i], amount: amounts[i], file: f, name: f.name });
+      } else {
+        items.push({ description: descriptions[i], amount: amounts[i], name: "" });
+      }
     }
   }
   return items;
@@ -262,7 +266,8 @@ function collectInvoices(formData: FormData): string | InvoiceItem[] {
 
 async function storeInvoices(custodyId: number, items: InvoiceItem[]) {
   for (const item of items) {
-    const filePath = item.url ?? (await saveInvoicePdfLocally(custodyId, item.file!));
+    const filePath =
+      item.url ?? (item.file ? await saveInvoicePdfLocally(custodyId, item.file) : "");
     await q(
       "INSERT INTO invoices (custody_id, description, amount, file_name, file_path) VALUES ($1, $2, $3, $4, $5)",
       [custodyId, item.description, item.amount, item.name, filePath]

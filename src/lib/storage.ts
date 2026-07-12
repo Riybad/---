@@ -29,6 +29,7 @@ export async function saveInvoicePdfLocally(custodyId: number, file: File): Prom
 
 /** يحذف ملف فاتورة أيًا كان مكان تخزينه */
 export async function deleteInvoiceFile(filePath: string): Promise<void> {
+  if (!filePath) return;
   if (filePath.startsWith("https://")) {
     const { del } = await import("@vercel/blob");
     await del(filePath).catch(() => {});
@@ -39,6 +40,7 @@ export async function deleteInvoiceFile(filePath: string): Promise<void> {
 
 /** يقرأ محتوى ملف فاتورة للعرض */
 export async function readInvoiceFile(filePath: string): Promise<Blob | null> {
+  if (!filePath) return null;
   if (filePath.startsWith("https://")) {
     const res = await fetch(filePath);
     if (!res.ok) return null;

@@ -39,6 +39,12 @@ export default function ClosureForm({
       const files = fd.getAll("inv_file") as File[];
       fd.delete("inv_file");
       for (const f of files) {
+        // الملف اختياري — الصفوف بدون ملف ترسل رابطًا فارغًا للحفاظ على الترتيب
+        if (!f || f.size === 0) {
+          fd.append("inv_url", "");
+          fd.append("inv_name", "");
+          continue;
+        }
         if (f.size > 10 * 1024 * 1024) throw new Error(`الملف ${f.name} أكبر من 10MB`);
         const result = await upload(`invoices/${f.name || "invoice.pdf"}`, f, {
           access: "public",
@@ -79,8 +85,8 @@ export default function ClosureForm({
             <input name="amount" type="number" step="0.01" min="0.01" className="input" required />
           </div>
           <div className="col-span-2">
-            <label className="label">الغرض من العهدة (اختياري)</label>
-            <input name="reason" className="input" />
+            <label className="label">الغرض من العهدة</label>
+            <input name="reason" className="input" required />
           </div>
         </div>
       )}
@@ -128,8 +134,8 @@ export default function ClosureForm({
               <input name="inv_amount" type="number" step="0.01" min="0.01" className="input" required />
             </div>
             <div className="sm:col-span-2">
-              <label className="label">ملف الفاتورة (PDF — بحد أقصى 10MB)</label>
-              <input name="inv_file" type="file" accept="application/pdf,.pdf" className="input" required />
+              <label className="label">ملف الفاتورة (PDF — اختياري، بحد أقصى 10MB)</label>
+              <input name="inv_file" type="file" accept="application/pdf,.pdf" className="input" />
             </div>
           </div>
         </fieldset>

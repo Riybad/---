@@ -143,14 +143,20 @@ export default async function CustodyDetailPage({
                   <td style={{ color: "var(--text-primary)" }}>{inv.description}</td>
                   <td className="num">{money(inv.amount)}</td>
                   <td>
-                    <a
-                      href={`/files/${inv.id}`}
-                      target="_blank"
-                      className="text-sm font-semibold hover:underline"
-                      style={{ color: "var(--accent)" }}
-                    >
-                      عرض PDF
-                    </a>
+                    {inv.file_path ? (
+                      <a
+                        href={`/files/${inv.id}`}
+                        target="_blank"
+                        className="text-sm font-semibold hover:underline"
+                        style={{ color: "var(--accent)" }}
+                      >
+                        عرض PDF
+                      </a>
+                    ) : (
+                      <span className="text-sm" style={{ color: "var(--text-muted)" }}>
+                        بدون ملف
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
