@@ -15,6 +15,8 @@ export const HIJRI_MONTHS = [
 
 export const STAGES = ["الإدارة", "متوسط", "ابتدائي عليا", "ابتدائي دنيا"];
 
+export const PAYMENT_METHODS = ["بطاقة الجمعية", "تحويل"];
+
 /** تاريخ اليوم بالتقويم الهجري (أم القرى) */
 export function todayHijri(): { day: number; month: number; year: number } {
   const parts = new Intl.DateTimeFormat("en-u-ca-islamic-umalqura", {

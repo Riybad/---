@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import ClosureLookup from "@/components/ClosureLookup";
+import ClosureForm from "@/components/ClosureForm";
 import RequestForm from "@/components/RequestForm";
 import { getRequestToken } from "@/lib/db";
+import { blobEnabled } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,15 @@ export default async function RequestPage({
       <div className="card sunny-card w-full max-w-lg p-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png" alt="شعار طُود" className="mx-auto mb-4 h-20 w-auto" />
-        {done ? (
+        {done === "close" ? (
+          <div className="text-center">
+            <p className="text-4xl">✅</p>
+            <h1 className="mt-3 text-xl font-bold">تم رفع الإقفال</h1>
+            <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
+              فواتيرك وصلت وستُراجع من الإدارة المالية لاعتماد الإقفال.
+            </p>
+          </div>
+        ) : done ? (
           <div className="text-center">
             <p className="text-4xl">✅</p>
             <h1 className="mt-3 text-xl font-bold">تم رفع العهدة</h1>
@@ -42,9 +51,13 @@ export default async function RequestPage({
           <>
             <h1 className="page-title mb-1 text-center text-xl">إقفال عهدة</h1>
             <p className="mb-6 text-center text-sm" style={{ color: "var(--brand-orange)" }}>
-              أدخل رقم جوالك وسنوصلك لعهدتك
+              ادخل بياناتك وتفاصيل كل فاتورة وأرفقها بصيغة PDF
             </p>
-            <ClosureLookup token={token} />
+            <ClosureForm
+              token={token}
+              uploadMode={blobEnabled() ? "blob" : "local"}
+              standalone
+            />
           </>
         ) : (
           <>

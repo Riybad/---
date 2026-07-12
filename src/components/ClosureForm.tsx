@@ -2,16 +2,22 @@
 
 import { useActionState, useState, useTransition } from "react";
 import { upload } from "@vercel/blob/client";
-import { submitClosure } from "@/app/actions";
+import { submitClosure, submitStandaloneClosure } from "@/app/actions";
+import { PAYMENT_METHODS } from "@/lib/hijri";
 
 export default function ClosureForm({
   token,
   uploadMode,
+  standalone = false,
 }: {
   token: string;
   uploadMode: "blob" | "local";
+  standalone?: boolean;
 }) {
-  const [error, action, pending] = useActionState(submitClosure, null);
+  const [error, action, pending] = useActionState(
+    standalone ? submitStandaloneClosure : submitClosure,
+    null
+  );
   const [rows, setRows] = useState([0]);
   const [nextKey, setNextKey] = useState(1);
   const [uploading, setUploading] = useState(false);
@@ -57,6 +63,42 @@ export default function ClosureForm({
       className="space-y-4"
     >
       <input type="hidden" name="token" value={token} />
+
+      {standalone && (
+        <div className="grid grid-cols-2 gap-3">
+          <div className="col-span-2">
+            <label className="label">الاسم الكامل</label>
+            <input name="name" className="input" required />
+          </div>
+          <div>
+            <label className="label">رقم الجوال</label>
+            <input name="phone" className="input" dir="ltr" placeholder="05xxxxxxxx" required />
+          </div>
+          <div>
+            <label className="label">مبلغ العهدة</label>
+            <input name="amount" type="number" step="0.01" min="0.01" className="input" required />
+          </div>
+          <div className="col-span-2">
+            <label className="label">الغرض من العهدة (اختياري)</label>
+            <input name="reason" className="input" />
+          </div>
+        </div>
+      )}
+
+      <div>
+        <label className="label">طريقة الدفع</label>
+        <select name="payment_method" className="input" required defaultValue="">
+          <option value="" disabled>
+            اختر طريقة الدفع
+          </option>
+          {PAYMENT_METHODS.map((m) => (
+            <option key={m} value={m}>
+              {m}
+            </option>
+          ))}
+        </select>
+      </div>
+
       {rows.map((key, i) => (
         <fieldset
           key={key}

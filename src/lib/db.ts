@@ -37,10 +37,12 @@ const SCHEMA = `
       CHECK (status IN ('pending','open','pending_close','closed','rejected')),
     close_token TEXT NOT NULL UNIQUE,
     admin_notes TEXT NOT NULL DEFAULT '',
+    payment_method TEXT NOT NULL DEFAULT '',
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     disbursed_at TIMESTAMPTZ,
     closed_at TIMESTAMPTZ
   );
+  ALTER TABLE custodies ADD COLUMN IF NOT EXISTS payment_method TEXT NOT NULL DEFAULT '';
   CREATE TABLE IF NOT EXISTS invoices (
     id SERIAL PRIMARY KEY,
     custody_id INTEGER NOT NULL REFERENCES custodies(id) ON DELETE CASCADE,
@@ -131,6 +133,7 @@ export type Custody = {
   amount: number | null;
   request_date: string;
   stage: string;
+  payment_method: string;
   status: CustodyStatus;
   close_token: string;
   admin_notes: string;

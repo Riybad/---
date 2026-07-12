@@ -11,7 +11,7 @@ import {
   requireAdmin,
 } from "@/lib/auth";
 import { q, getRequestToken, newCloseToken, type Custody } from "@/lib/db";
-import { composeHijri, STAGES } from "@/lib/hijri";
+import { composeHijri, PAYMENT_METHODS, STAGES, todayHijri } from "@/lib/hijri";
 import {
   deleteInvoiceFile,
   isValidBlobUrl,
@@ -223,28 +223,83 @@ export async function submitRequest(
   redirect(`/r/${token}?done=1`);
 }
 
-/** يبحث عن عهدة الموظف عبر رقم جواله ويحوّله لصفحة الإقفال */
-export async function findClosureByPhone(
+const MAX_PDF_BYTES = 10 * 1024 * 1024;
+
+type InvoiceItem = { description: string; amount: number; url?: string; file?: File; name: string };
+
+/** يقرأ ويتحقق من فواتير النموذج (روابط مرفوعة سحابيًا أو ملفات مباشرة) */
+function collectInvoices(formData: FormData): string | InvoiceItem[] {
+  const descriptions = formData.getAll("inv_description").map((v) => String(v).trim());
+  const amounts = formData.getAll("inv_amount").map((v) => Number(v));
+  const urls = formData.getAll("inv_url").map((v) => String(v));
+  const names = formData.getAll("inv_name").map((v) => String(v));
+  const files = formData.getAll("inv_file") as File[];
+  const usingUrls = urls.length > 0;
+
+  if (descriptions.length === 0) return "أضف فاتورة واحدة على الأقل";
+  const items: InvoiceItem[] = [];
+  for (let i = 0; i < descriptions.length; i++) {
+    if (!descriptions[i] || !(amounts[i] > 0)) return `أكمل بيانات الفاتورة رقم ${i + 1}`;
+    if (usingUrls) {
+      if (!isValidBlobUrl(urls[i])) return `ملف الفاتورة رقم ${i + 1} لم يُرفع بشكل صحيح`;
+      items.push({
+        description: descriptions[i],
+        amount: amounts[i],
+        url: urls[i],
+        name: names[i] || `invoice-${i + 1}.pdf`,
+      });
+    } else {
+      const f = files[i];
+      if (!f || f.size === 0) return `أرفق ملف PDF للفاتورة رقم ${i + 1}`;
+      if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
+      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
+      if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
+      items.push({ description: descriptions[i], amount: amounts[i], file: f, name: f.name });
+    }
+  }
+  return items;
+}
+
+async function storeInvoices(custodyId: number, items: InvoiceItem[]) {
+  for (const item of items) {
+    const filePath = item.url ?? (await saveInvoicePdfLocally(custodyId, item.file!));
+    await q(
+      "INSERT INTO invoices (custody_id, description, amount, file_name, file_path) VALUES ($1, $2, $3, $4, $5)",
+      [custodyId, item.description, item.amount, item.name, filePath]
+    );
+  }
+}
+
+/** إقفال مباشر من الرابط العام — للعهد المصروفة سابقًا خارج النظام */
+export async function submitStandaloneClosure(
   _prev: string | null,
   formData: FormData
 ): Promise<string | null> {
   const token = String(formData.get("token") ?? "");
   if (token !== (await getRequestToken())) return "الرابط غير صالح";
-  const phone = String(formData.get("phone") ?? "").replace(/\D/g, "");
-  if (phone.length < 9) return "فضلًا أدخل رقم الجوال كاملًا";
-  const suffix = phone.slice(-9);
-  const custodies = (await q(
-    "SELECT close_token, phone, status FROM custodies WHERE status IN ('open','pending_close') ORDER BY id DESC"
-  )) as { close_token: string; phone: string; status: string }[];
-  const mine = custodies.filter((c) => c.phone.replace(/\D/g, "").slice(-9) === suffix);
-  if (mine.length === 0)
-    return "ما وجدنا عهدة مفتوحة بهذا الرقم — تأكد من الرقم أو تواصل مع الإدارة المالية";
-  const open = mine.find((c) => c.status === "open");
-  if (!open) return "عهدتك مرفوعة وبانتظار اعتماد الإقفال من الإدارة المالية";
-  redirect(`/c/${open.close_token}`);
-}
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const amount = Number(formData.get("amount"));
+  const paymentMethod = String(formData.get("payment_method") ?? "");
+  const reason = String(formData.get("reason") ?? "").trim() || "عهدة سابقة";
+  if (!name || !phone) return "فضلًا أدخل الاسم ورقم الجوال";
+  if (!(amount > 0)) return "فضلًا أدخل مبلغ العهدة";
+  if (!PAYMENT_METHODS.includes(paymentMethod)) return "فضلًا اختر طريقة الدفع";
 
-const MAX_PDF_BYTES = 10 * 1024 * 1024;
+  const invoices = collectInvoices(formData);
+  if (typeof invoices === "string") return invoices;
+
+  const t = todayHijri();
+  const date = composeHijri(t.day, t.month, t.year) ?? "";
+  const rows = await q(
+    `INSERT INTO custodies (name, phone, reason, requested_amount, amount, request_date, payment_method, status, close_token, disbursed_at)
+     VALUES ($1, $2, $3, $4, $4, $5, $6, 'pending_close', $7, now()) RETURNING id`,
+    [name, phone, reason, amount, date, paymentMethod, newCloseToken()]
+  );
+  await storeInvoices(rows[0].id as number, invoices);
+  revalidatePath("/", "layout");
+  redirect(`/r/${token}?done=close`);
+}
 
 export async function submitClosure(
   _prev: string | null,
@@ -257,39 +312,17 @@ export async function submitClosure(
   const custody = rows[0] as Custody | undefined;
   if (!custody) return "الرابط غير صالح أو العهدة ليست بحالة تسمح بالإقفال";
 
-  const descriptions = formData.getAll("inv_description").map((v) => String(v).trim());
-  const amounts = formData.getAll("inv_amount").map((v) => Number(v));
-  // الوضع السحابي: روابط ملفات مرفوعة مسبقًا من المتصفح — الوضع المحلي: الملفات نفسها
-  const urls = formData.getAll("inv_url").map((v) => String(v));
-  const names = formData.getAll("inv_name").map((v) => String(v));
-  const files = formData.getAll("inv_file") as File[];
-  const usingUrls = urls.length > 0;
+  const paymentMethod = String(formData.get("payment_method") ?? "");
+  if (!PAYMENT_METHODS.includes(paymentMethod)) return "فضلًا اختر طريقة الدفع";
 
-  if (descriptions.length === 0) return "أضف فاتورة واحدة على الأقل";
-  for (let i = 0; i < descriptions.length; i++) {
-    if (!descriptions[i] || !(amounts[i] > 0)) return `أكمل بيانات الفاتورة رقم ${i + 1}`;
-    if (usingUrls) {
-      if (!isValidBlobUrl(urls[i])) return `ملف الفاتورة رقم ${i + 1} لم يُرفع بشكل صحيح`;
-    } else {
-      const f = files[i];
-      if (!f || f.size === 0) return `أرفق ملف PDF للفاتورة رقم ${i + 1}`;
-      if (f.size > MAX_PDF_BYTES) return `ملف الفاتورة رقم ${i + 1} أكبر من 10MB`;
-      const isPdf = f.type === "application/pdf" || f.name.toLowerCase().endsWith(".pdf");
-      if (!isPdf) return `ملف الفاتورة رقم ${i + 1} يجب أن يكون PDF`;
-    }
-  }
+  const invoices = collectInvoices(formData);
+  if (typeof invoices === "string") return invoices;
 
-  for (let i = 0; i < descriptions.length; i++) {
-    const filePath = usingUrls
-      ? urls[i]
-      : await saveInvoicePdfLocally(custody.id, files[i]);
-    const fileName = usingUrls ? names[i] || `invoice-${i + 1}.pdf` : files[i].name;
-    await q(
-      "INSERT INTO invoices (custody_id, description, amount, file_name, file_path) VALUES ($1, $2, $3, $4, $5)",
-      [custody.id, descriptions[i], amounts[i], fileName, filePath]
-    );
-  }
-  await q("UPDATE custodies SET status = 'pending_close' WHERE id = $1", [custody.id]);
+  await storeInvoices(custody.id, invoices);
+  await q("UPDATE custodies SET status = 'pending_close', payment_method = $1 WHERE id = $2", [
+    paymentMethod,
+    custody.id,
+  ]);
   revalidatePath("/", "layout");
   redirect(`/c/${token}?done=1`);
 }
