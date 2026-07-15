@@ -30,7 +30,13 @@ export default async function CustodiesPage({
     <main className="space-y-6">
       <h1 className="page-title text-xl">العهد</h1>
 
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <a
+          href={valid ? `/api/export/custodies?status=${valid}` : "/api/export/custodies"}
+          className="btn btn-ghost text-sm"
+        >
+          ⬇ تصدير إكسل
+        </a>
         {FILTERS.map((f) => {
           const active = (valid ?? "") === f.key;
           return (
