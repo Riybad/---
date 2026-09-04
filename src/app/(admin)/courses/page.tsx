@@ -123,32 +123,11 @@ function CourseForm({ course }: { course?: Course }) {
       </div>
       <div className="sm:col-span-6 mt-1 grid gap-3 rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
-          ما يدرس منه الطالب — يظهر له في صفحة الخطة وفي ملف الإكسل
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div>
-            <label className="label">التسجيل الصوتي للمتن (للحفظ)</label>
-            <input
-              name="recitation_name"
-              className="input"
-              placeholder="قراءة فلان"
-              defaultValue={course?.recitation_name ?? ""}
-            />
-          </div>
-          <div>
-            <label className="label">رابط التسجيل</label>
-            <input
-              name="recitation_url"
-              className="input"
-              dir="ltr"
-              placeholder="https://"
-              defaultValue={course?.recitation_url ?? ""}
-            />
-          </div>
+          الشرح المعتمد — يراه الطالب بعد رفع خطته وفي ملف الإكسل
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>
-            <label className="label">الشرح (الشارح)</label>
+            <label className="label">الشرح (الشارح أو الكتاب)</label>
             <input
               name="sharh_name"
               className="input"
@@ -157,7 +136,7 @@ function CourseForm({ course }: { course?: Course }) {
             />
           </div>
           <div>
-            <label className="label">رابط الكتاب</label>
+            <label className="label">رابط الشرح القرائي</label>
             <input
               name="sharh_book_url"
               className="input"
@@ -167,7 +146,7 @@ function CourseForm({ course }: { course?: Course }) {
             />
           </div>
           <div>
-            <label className="label">رابط المرئيات</label>
+            <label className="label">رابط الشرح السماعي</label>
             <input
               name="sharh_video_url"
               className="input"

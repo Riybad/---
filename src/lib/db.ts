@@ -143,43 +143,40 @@ const DEFAULT_COURSES: [string, string, string, number, number, string][] = [
 ];
 
 /**
- * الشروح والتسجيلات كما في ملف «تفصيل مقررات الخطة الأساسية»:
- * [التسجيل الصوتي للمتن، رابطه، الشرح، رابط الكتاب، رابط المرئيات]
- * تُملأ للمقرر الذي لم يُملأ له شيء بعد — فلا تطمس ما عدّله المشرف.
+ * الشروح المعتمدة كما في ورقة «المتون»: [الشارح، رابط القرائي، رابط السماعي]
+ * تُملأ للمقرر الذي لم يُملأ له شرح بعد — فلا تطمس ما عدّله المشرف.
+ * القرآن سؤال وجواب بلا شرح عمدًا، والتاريخ قرائي فقط (الموسوعة الميسرة).
  */
-const COURSE_RESOURCES: Record<string, [string, string, string, string, string]> = {
+const COURSE_RESOURCES: Record<string, [string, string, string]> = {
   "سلم الوصول": [
-    "قراءة عمر الغبيوي",
-    "",
     "شرح الشيخ عبدالرزاق البدر",
     "https://www.noor-book.com/%D9%83%D8%AA%D8%A7%D8%A8-%D8%AA%D9%81%D8%B1%D9%8A%D8%BA-%D8%B4%D8%B1%D8%AD-%D9%85%D9%86%D8%B8%D9%88%D9%85%D9%87-%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%88%D8%B5%D9%88%D9%84-%D8%B9%D8%A8%D8%AF%D8%A7%D9%84%D8%B1%D8%B2%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%AF%D8%B1-pdf",
     "https://youtube.com/playlist?list=PLXuY2YL-v4n8Qhu4pSgUMdBzrdTKfLhbE&si=AxfgAdbC2LH2fcq1",
   ],
   "أخصر المختصرات": [
-    "د. أحمد حامد",
-    "https://youtube.com/playlist?list=PL2KOHInv_fdQSjsqmX65vqX5Wnd835x5r&si=p2Ru130ALLlFvsHB",
     "شرح الشيخ عبدالسلام الشويعر",
     "https://ia600506.us.archive.org/15/items/Sharh_Akhsar_Mokhtasarat_1437H/Sharh_Akhsar_Mokhtasarat.pdf",
     "https://youtube.com/playlist?list=PLl9thoP_s9vWvtIPQ_h0eCGPmOLP3-N_O&si=9wRZ1IRkFqgz2dfk",
   ],
   "نظم الآجرومية": [
-    "قراءة عبدالعزيز الصيني",
-    "https://youtu.be/jmo3cef4ah8?si=TkBZMcwxDbW0i6DY",
     "شرح الشيخ سليمان العيوني",
     "https://archive.org/details/hjiggggg_gmail_20180729_1454",
     "https://youtube.com/playlist?list=PL54tsaxKeZjP3ZXGyP3HpgPY3b4SqNrI_&si=mMszoNZwjnoj57rT",
   ],
+  "موسوعة التاريخ الإسلامي": [
+    "الموسوعة الميسرة",
+    "https://archive.org/details/20220418_20220418_1227",
+    "",
+  ],
 };
 
 async function seedResources(client: QueryClient): Promise<void> {
-  for (const [name, [rName, rUrl, sName, sBook, sVideo]] of Object.entries(COURSE_RESOURCES)) {
+  for (const [name, [sName, sBook, sVideo]] of Object.entries(COURSE_RESOURCES)) {
     await client.query(
       `UPDATE courses
-         SET recitation_name = $2, recitation_url = $3,
-             sharh_name = $4, sharh_book_url = $5, sharh_video_url = $6
-       WHERE name = $1 AND recitation_name = '' AND sharh_name = ''
-         AND recitation_url = '' AND sharh_book_url = '' AND sharh_video_url = ''`,
-      [name, rName, rUrl, sName, sBook, sVideo]
+         SET sharh_name = $2, sharh_book_url = $3, sharh_video_url = $4
+       WHERE name = $1 AND sharh_name = '' AND sharh_book_url = '' AND sharh_video_url = ''`,
+      [name, sName, sBook, sVideo]
     );
   }
 }
