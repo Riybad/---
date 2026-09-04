@@ -1,9 +1,18 @@
+import type { Metadata } from "next";
 import PlanWizard from "@/components/PlanWizard";
 import { listCourses } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "خطتي السنوية — طُود" };
+export const metadata: Metadata = {
+  title: "خطتي السنوية — نبغ",
+  description: "قسّم مقرراتك الخمسة على السنة بين الحفظ والشرح، واحفظ خطتك برابط خاص بك.",
+  openGraph: {
+    title: "خطتي السنوية — نبغ",
+    description: "قسّم مقرراتك الخمسة على السنة بين الحفظ والشرح، واحفظ خطتك برابط خاص بك.",
+    images: ["/logo-nabgh.png"],
+  },
+};
 
 export default async function KhittaPage() {
   const courses = await listCourses();
