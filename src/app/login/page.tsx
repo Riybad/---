@@ -10,7 +10,7 @@ export default function LoginPage() {
       <form action={action} className="card sunny-card w-full max-w-sm p-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-4 h-20 w-auto" />
-        <h1 className="page-title mb-1 text-center text-xl">الإدارة المالية</h1>
+        <h1 className="page-title mb-1 text-center text-xl">لوحة الطلاب</h1>
         <p className="mb-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
           تسجيل دخول المشرف
         </p>

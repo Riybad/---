@@ -1,34 +1,19 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import CopyButton from "@/components/CopyButton";
-import { getRequestToken } from "@/lib/db";
-import { money, fmtDate, STATUS_LABEL, STATUS_STYLE } from "@/lib/format";
-import { getCustodyStats, getTotals, listCustodies, listStudents, listTransactions } from "@/lib/queries";
-import { YEAR_END, YEAR_START } from "@/lib/calendar";
+import { CADENCES, cadenceInfo, YEAR_END, YEAR_START } from "@/lib/calendar";
+import type { Cadence } from "@/lib/calendar";
+import { listCourses, listStudents, planCounts } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
 
-function StatTile({
-  label,
-  value,
-  sub,
-  tone,
-}: {
-  label: string;
-  value: string;
-  sub?: string;
-  tone?: "good" | "critical";
-}) {
-  const color =
-    tone === "good" ? "var(--good-text)" : tone === "critical" ? "var(--critical)" : "var(--text-primary)";
+function Tile({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
     <div className="card p-5">
       <p className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
         {label}
       </p>
-      <p className="mt-1 text-2xl font-bold" style={{ color }}>
-        {value}
-      </p>
+      <p className="mt-1 text-2xl font-bold">{value}</p>
       {sub && (
         <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
           {sub}
@@ -39,186 +24,130 @@ function StatTile({
 }
 
 export default async function DashboardPage() {
-  const totals = await getTotals();
-  const custody = await getCustodyStats();
-  const recentCustodies = await listCustodies(undefined, 6);
-  const recentTx = await listTransactions(6);
+  const [students, counts, courses] = await Promise.all([listStudents(), planCounts(), listCourses()]);
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
-  const requestUrl = `${proto}://${host}/r/${await getRequestToken()}`;
   const khittaUrl = `${proto}://${host}/khitta`;
-  const students = await listStudents();
 
-  const net = totals.revenue - totals.expense;
+  // لا تُعرض الوحدات التي لم يخترها أحد — الأصفار تشوّش ولا تفيد
+  const byCadence = CADENCES.map((c) => ({
+    label: c.label,
+    n: students.filter((s) => (s.cadence || "weekly") === c.key).length,
+  })).filter((c) => c.n > 0);
+  const latest = students.slice(0, 8);
+  const today = new Date().toISOString().slice(0, 10);
+  const registeredToday = students.filter(
+    (s) => new Date(s.created_at).toISOString().slice(0, 10) === today
+  ).length;
 
   return (
-    <main className="space-y-6">
+    <main className="grid gap-6">
+      {/* رابط التسجيل — أهم شيء في اللوحة */}
       <section className="card p-5">
-        <div className="flex flex-wrap items-center gap-3">
-          <div>
-            <h2 className="page-title text-lg">خطط الطلاب</h2>
-            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              دراسة ذاتية على مدار السنة — من {YEAR_START.hijri} إلى {YEAR_END.hijri}
-            </p>
-          </div>
-          <div className="ms-auto flex flex-wrap gap-2">
-            <Link href="/students" className="btn btn-primary text-sm">
-              الطلاب ({students.length})
-            </Link>
-            <Link href="/courses" className="btn btn-ghost text-sm">
-              المقررات
-            </Link>
-            <Link href="/taqweem" className="btn btn-ghost text-sm">
-              الخطة الزمنية
-            </Link>
-          </div>
-        </div>
-        <div
-          className="mt-4 flex flex-wrap items-center gap-3 rounded-xl p-3"
-          style={{ background: "var(--surface-stripe)" }}
-        >
+        <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
           <div className="min-w-0">
-            <p className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
-              رابط تسجيل الخطة (أرسله للطلاب)
+            <h1 className="page-title text-lg">رابط تسجيل الطلاب</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              أرسله للطلاب. كل طالب يكتب اسمه ويقسّم مقرراته على السنة ويحفظ خطته، وتظهر لك هنا.
             </p>
-            <p className="break-all text-xs num" style={{ color: "var(--text-secondary)" }}>
+            <p
+              className="mt-3 break-all rounded-lg px-3 py-2 text-sm num"
+              style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}
+            >
               {khittaUrl}
             </p>
           </div>
-          <div className="ms-auto flex gap-2">
-            <CopyButton text={khittaUrl} />
-            <a className="btn btn-ghost text-sm" href="/api/export/khitta">
-              تصدير كل الخطط إكسل
-            </a>
+          <div className="flex flex-wrap gap-2 md:flex-col">
+            <CopyButton text={khittaUrl} label="نسخ الرابط" />
+            <Link href="/khitta" target="_blank" className="btn btn-ghost text-sm">
+              فتح الصفحة ↗
+            </Link>
           </div>
         </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatTile label="مجموع الإيرادات" value={money(totals.revenue)} tone="good" />
-        <StatTile label="مجموع المصروفات" value={money(totals.expense)} tone="critical" />
-        <StatTile label="الصافي" value={money(net)} tone={net >= 0 ? "good" : "critical"} />
-        <StatTile
-          label="طلبات عهد جديدة"
-          value={String(custody.pending.count)}
-          sub="بانتظار قرارك"
+      {/* أرقام سريعة */}
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <Tile label="الطلاب المسجّلون" value={String(students.length)} sub={registeredToday ? `${registeredToday} سجّلوا اليوم` : "لم يسجّل أحد اليوم"} />
+        <Tile
+          label="وحدات التقسيم"
+          value={byCadence.length ? `${byCadence.length}` : "—"}
+          sub={byCadence.map((c) => `${c.n} ${c.label}`).join(" · ") || "لا خطط بعد"}
         />
-        <StatTile
-          label="العهد المفتوحة"
-          value={String(custody.open.count)}
-          sub={`إجمالي المبالغ: ${money(custody.open.amount)}`}
-        />
-        <StatTile
-          label="بانتظار اعتماد الإقفال"
-          value={String(custody.pendingClose.count)}
-          sub={`إجمالي المبالغ: ${money(custody.pendingClose.amount)}`}
-        />
-        <StatTile
-          label="العهد المقفلة"
-          value={String(custody.closed.count)}
-          sub={`إجمالي المبالغ: ${money(custody.closed.amount)}`}
-        />
-        <div className="card flex flex-col justify-between gap-2 p-5">
-          <div>
-            <p className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
-              رابط طلب عهدة (للموظفين)
-            </p>
-            <p className="mt-1 break-all text-xs num" style={{ color: "var(--text-secondary)" }}>
-              {requestUrl}
+        <Tile label="المقررات المفعّلة" value={String(courses.length)} sub={courses.map((c) => c.name).join("، ")} />
+        <Tile label="سنة الخطة" value="366 يومًا" sub={`${YEAR_START.hijri} إلى ${YEAR_END.hijri}`} />
+      </section>
+
+      {/* التصدير */}
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0">
+            <h2 className="font-bold">تصدير إكسل</h2>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              <strong>كل الطلاب</strong>: ورقة الطلاب، وتفاصيل خططهم صفًا لكل فترة ومقرر، والمقررات، والخطة الزمنية.
+              أما <strong>الطالب الواحد</strong> فمن صفحته أو من زرّي «قالب» و«تفصيلي» في جدول الطلاب.
             </p>
           </div>
-          <CopyButton text={requestUrl} />
+          <a className="btn btn-primary ms-auto text-sm" href="/api/export/khitta">
+            تصدير كل الخطط
+          </a>
         </div>
-      </div>
+      </section>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <section className="card">
-          <div className="flex items-center justify-between p-4 pb-0">
-            <h2 className="font-bold">آخر العهد</h2>
-            <Link href="/custodies" className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
-              عرض الكل ←
-            </Link>
-          </div>
-          <table className="table mt-2">
-            <thead>
-              <tr>
-                <th>الاسم</th>
-                <th>المبلغ</th>
-                <th>الحالة</th>
-                <th>التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentCustodies.length === 0 && (
+      {/* آخر الطلاب */}
+      <section className="card">
+        <div className="flex items-center justify-between p-4 pb-0">
+          <h2 className="font-bold">آخر الطلاب</h2>
+          <Link href="/students" className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
+            كل الطلاب ←
+          </Link>
+        </div>
+        {latest.length === 0 ? (
+          <p className="p-6 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+            لم يسجّل أحد بعد. أرسل رابط التسجيل للطلاب.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="table mt-2">
+              <thead>
                 <tr>
-                  <td colSpan={4} className="text-center">
-                    لا توجد عهد بعد
-                  </td>
+                  <th>الاسم</th>
+                  <th>الوحدة</th>
+                  <th>المقررات</th>
+                  <th>التاريخ</th>
+                  <th>إكسل</th>
                 </tr>
-              )}
-              {recentCustodies.map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <Link href={`/custodies/${c.id}`} className="font-semibold hover:underline" style={{ color: "var(--text-primary)" }}>
-                      {c.name}
-                    </Link>
-                  </td>
-                  <td className="num">{money(c.amount ?? c.requested_amount)}</td>
-                  <td>
-                    <span className={STATUS_STYLE[c.status]}>{STATUS_LABEL[c.status]}</span>
-                  </td>
-                  <td className="num">{fmtDate(c.request_date)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-
-        <section className="card">
-          <div className="flex items-center justify-between p-4 pb-0">
-            <h2 className="font-bold">آخر الحركات المالية</h2>
-            <Link href="/transactions" className="text-sm font-semibold" style={{ color: "var(--accent)" }}>
-              عرض الكل ←
-            </Link>
+              </thead>
+              <tbody>
+                {latest.map((s) => (
+                  <tr key={s.id}>
+                    <td>
+                      <Link href={`/students/${s.id}`} className="font-semibold hover:underline">
+                        {s.name}
+                      </Link>
+                    </td>
+                    <td>{cadenceInfo((s.cadence || "weekly") as Cadence).label}</td>
+                    <td className="num">{counts.get(s.id) ?? 0}</td>
+                    <td className="num" dir="ltr">
+                      {new Date(s.created_at).toISOString().slice(0, 10)}
+                    </td>
+                    <td className="whitespace-nowrap">
+                      <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
+                        قالب
+                      </a>{" "}
+                      <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
+                        تفصيلي
+                      </a>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-          <table className="table mt-2">
-            <thead>
-              <tr>
-                <th>الوصف</th>
-                <th>النوع</th>
-                <th>المبلغ</th>
-                <th>التاريخ</th>
-              </tr>
-            </thead>
-            <tbody>
-              {recentTx.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="text-center">
-                    لا توجد حركات بعد
-                  </td>
-                </tr>
-              )}
-              {recentTx.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.description}</td>
-                  <td>
-                    <span
-                      className="text-xs font-bold"
-                      style={{ color: t.type === "revenue" ? "var(--good-text)" : "var(--critical)" }}
-                    >
-                      {t.type === "revenue" ? "إيراد" : "مصروف"}
-                    </span>
-                  </td>
-                  <td className="num">{money(t.amount)}</td>
-                  <td className="num">{fmtDate(t.date)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </section>
-      </div>
+        )}
+      </section>
     </main>
   );
 }

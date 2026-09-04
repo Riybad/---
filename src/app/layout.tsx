@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "نبغ — النخب الناشئة (تمكين)",
-  description: "خطط الطلاب السنوية (حفظ وشرح) وإدارة الإيرادات والمصروفات والعهد",
+  description: "خطط الطلاب السنوية: تقسيم المقررات على السنة بين الحفظ والشرح",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
