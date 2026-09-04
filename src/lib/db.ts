@@ -171,14 +171,18 @@ const COURSE_RESOURCES: Record<string, [string, string, string]> = {
 };
 
 async function seedResources(client: QueryClient): Promise<void> {
-  for (const [name, [sName, sBook, sVideo]] of Object.entries(COURSE_RESOURCES)) {
-    await client.query(
-      `UPDATE courses
-         SET sharh_name = $2, sharh_book_url = $3, sharh_video_url = $4
-       WHERE name = $1 AND sharh_name = '' AND sharh_book_url = '' AND sharh_video_url = ''`,
-      [name, sName, sBook, sVideo]
-    );
-  }
+  const entries = Object.entries(COURSE_RESOURCES);
+  const values = entries
+    .map((_, i) => `($${i * 4 + 1}::text, $${i * 4 + 2}::text, $${i * 4 + 3}::text, $${i * 4 + 4}::text)`)
+    .join(", ");
+  await client.query(
+    `UPDATE courses AS c
+       SET sharh_name = v.sharh_name, sharh_book_url = v.book, sharh_video_url = v.video
+       FROM (VALUES ${values}) AS v(name, sharh_name, book, video)
+      WHERE c.name = v.name
+        AND c.sharh_name = '' AND c.sharh_book_url = '' AND c.sharh_video_url = ''`,
+    entries.flatMap(([name, [sName, sBook, sVideo]]) => [name, sName, sBook, sVideo])
+  );
 }
 
 async function seedCourses(client: QueryClient): Promise<void> {
