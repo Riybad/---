@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { YEAR_END, YEAR_START } from "@/lib/calendar";
-import { cadenceInfo } from "@/lib/calendar";
+import { cadenceInfo, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import { listStudents, planCounts } from "@/lib/queries";
 
@@ -20,15 +19,15 @@ export default async function StudentsPage({
         <div>
           <h1 className="page-title text-xl">الطلاب وخططهم</h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            السنة من {YEAR_START.hijri} إلى {YEAR_END.hijri}
+            السنة من {YEAR_START.hijri} إلى {YEAR_END.hijri} · {students.length} طالبًا
           </p>
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
-          <a className="btn btn-ghost text-sm" href="/api/export/khitta">
-            تصدير كل الخطط إكسل
+          <a className="btn btn-primary text-sm" href="/api/export/khitta">
+            تصدير كل الخطط
           </a>
-          <Link className="btn btn-primary text-sm" href="/khitta" target="_blank">
-            رابط تسجيل الطلاب ↗
+          <Link className="btn btn-ghost text-sm" href="/khitta" target="_blank">
+            رابط التسجيل ↗
           </Link>
         </div>
       </div>
@@ -41,24 +40,32 @@ export default async function StudentsPage({
           placeholder="ابحث بالاسم أو رقم الجوال"
         />
         <button className="btn btn-ghost text-sm">بحث</button>
+        {search && (
+          <Link href="/students" className="btn btn-ghost text-sm">
+            مسح
+          </Link>
+        )}
       </form>
 
-      <div className="card overflow-x-auto">
+      {/* حاوية السحب مستقلة عن البطاقة: overflow:hidden فيها يطغى على overflow-x-auto */}
+      <div className="card">
         {students.length === 0 ? (
           <p className="p-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
             {search ? "لا نتائج للبحث." : "لم يسجّل أي طالب خطته بعد — أرسل لهم رابط التسجيل."}
           </p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="table">
             <thead>
               <tr>
                 <th className="w-12">م</th>
                 <th>الاسم</th>
                 <th>الجوال</th>
-                <th>وحدة التقسيم</th>
-                <th>عدد المقررات</th>
-                <th>تاريخ التسجيل</th>
-                <th></th>
+                <th>الوحدة</th>
+                <th>المقررات</th>
+                <th>التاريخ</th>
+                <th>الخطة</th>
+                <th>إكسل</th>
               </tr>
             </thead>
             <tbody>
@@ -80,13 +87,22 @@ export default async function StudentsPage({
                       className="font-semibold underline"
                       style={{ color: "var(--brand-olive)" }}
                     >
-                      الخطة
+                      عرض
                     </Link>
+                  </td>
+                  <td className="whitespace-nowrap">
+                    <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
+                      قالب
+                    </a>{" "}
+                    <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
+                      تفصيلي
+                    </a>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>
