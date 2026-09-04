@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import Brand from "@/components/Brand";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
+import CourseResources, { hasSharh } from "@/components/CourseResources";
 import type { Cadence } from "@/lib/calendar";
 import { getStudentByToken, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
@@ -69,6 +70,35 @@ export default async function StudentPlanPage({
           >
             {planUrl}
           </p>
+        </div>
+
+        <div className="card sunny-card p-5">
+          <h2 className="mb-1 font-bold">الشروح المعتمدة</h2>
+          <p className="mb-3 text-xs" style={{ color: "var(--text-muted)" }}>
+            لكل مقرر شرحه القرائي (كتاب) والسماعي (مرئيات) — ادرس منها.
+          </p>
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {picks.map((p) => {
+              const course = courses.find((c) => c.id === p.courseId);
+              if (!course) return null;
+              return (
+                <li
+                  key={p.courseId}
+                  className="rounded-xl border p-3"
+                  style={{ borderColor: "var(--hairline)" }}
+                >
+                  <div className="mb-1 font-bold">{course.name}</div>
+                  {hasSharh(course) ? (
+                    <CourseResources course={course} />
+                  ) : (
+                    <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                      لا شرح معتمد لهذا المقرر.
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
         </div>
 
         <div className="card sunny-card p-5">

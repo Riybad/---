@@ -147,8 +147,6 @@ export async function saveCourse(formData: FormData): Promise<void> {
     EXPL_LABELS.includes(explLabel) ? explLabel : "شرح",
     memoTotalValue > 0,
     explTotalValue > 0,
-    text("recitation_name"),
-    url("recitation_url"),
     text("sharh_name"),
     url("sharh_book_url"),
     url("sharh_video_url"),
@@ -158,9 +156,8 @@ export async function saveCourse(formData: FormData): Promise<void> {
     await q(
       `UPDATE courses SET name = $1, subject = $2, unit = $3, memo_total = $4, expl_total = $5,
          expl_label = $6, has_memo = $7, has_expl = $8,
-         recitation_name = $9, recitation_url = $10,
-         sharh_name = $11, sharh_book_url = $12, sharh_video_url = $13
-       WHERE id = $14`,
+         sharh_name = $9, sharh_book_url = $10, sharh_video_url = $11
+       WHERE id = $12`,
       [...params, id]
     );
   } else {
@@ -168,8 +165,8 @@ export async function saveCourse(formData: FormData): Promise<void> {
     await q(
       `INSERT INTO courses
          (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl,
-          recitation_name, recitation_url, sharh_name, sharh_book_url, sharh_video_url, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
+          sharh_name, sharh_book_url, sharh_video_url, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
       [...params, Number(max?.m ?? -1) + 1]
     );
   }
