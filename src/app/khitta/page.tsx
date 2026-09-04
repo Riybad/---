@@ -1,5 +1,4 @@
 import PlanWizard from "@/components/PlanWizard";
-import { SESSIONS, YEAR_SESSIONS_LABEL } from "@/lib/calendar";
 import { listCourses } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +14,7 @@ export default async function KhittaPage() {
         <div className="card sunny-card mb-4 p-6 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-3 h-16 w-auto" />
-          <h1 className="page-title text-xl">خطتي السنوية — حفظ وشرح</h1>
-          <p className="mt-2 text-sm" style={{ color: "var(--text-secondary)" }}>
-            {YEAR_SESSIONS_LABEL} — من {SESSIONS[0]?.hijri} إلى {SESSIONS[SESSIONS.length - 1]?.hijri}
-          </p>
+          <h1 className="page-title text-xl">خطتي السنوية</h1>
         </div>
 
         {courses.length === 0 ? (

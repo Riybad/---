@@ -1,9 +1,11 @@
 import * as XLSX from "xlsx";
-import { CALENDAR, EVENT_LABEL, SESSIONS } from "./calendar";
+import { CALENDAR, cadenceInfo, EVENT_LABEL } from "./calendar";
+import type { Cadence } from "./calendar";
 import {
   buildSchedule,
   explTotal,
   memoTotal,
+  periodCount,
   portionText,
   spanOf,
   type Course,
@@ -30,63 +32,68 @@ function calendarSheet(): Sheet {
   return sheet(rows, [20, 12, 14, 14, 20]);
 }
 
-/** ورقة خطة طالب واحد: صف لكل لقاء ومقرر */
-function planRows(courses: Course[], picks: Pick[]): (string | number)[][] {
+/** ورقة خطة طالب واحد: صف لكل فترة ومقرر */
+function planRows(courses: Course[], picks: Pick[], cadence: Cadence): (string | number)[][] {
+  const info = cadenceInfo(cadence);
   const rows: (string | number)[][] = [
     [
-      "اللقاء",
+      info.each,
       "التاريخ الهجري",
-      "اليوم",
-      "التاريخ الميلادي",
+      "من (ميلادي)",
+      "إلى (ميلادي)",
       "المقرر",
       "الحفظ",
       "الشرح / القراءة",
       "المسار الثاني",
       "الوحدة",
+      "أحداث الفترة",
     ],
   ];
-  for (const r of buildSchedule(courses, picks)) {
+  for (const r of buildSchedule(courses, picks, cadence)) {
     for (const p of r.portions) {
       rows.push([
         r.no,
-        r.session.hijri,
-        r.session.weekday,
-        r.session.gregorian,
+        r.period.hijri,
+        r.period.first.gregorian,
+        r.period.last.gregorian,
         p.course.name,
         portionText(p.memoFrom, p.memoTo),
         portionText(p.explFrom, p.explTo),
         p.course.expl_label,
         p.course.unit,
+        r.period.events.map((e) => EVENT_LABEL[e]).join("، "),
       ]);
     }
   }
   return rows;
 }
 
-const PLAN_WIDTHS = [8, 22, 12, 14, 26, 14, 16, 14, 10];
+const PLAN_WIDTHS = [8, 26, 14, 14, 26, 14, 16, 14, 10, 24];
 
 /** ملف خطة طالب واحد */
 export function studentWorkbook(student: Student, courses: Course[], picks: Pick[]): Buffer {
   const wb = XLSX.utils.book_new();
   wb.Workbook = { Views: [{ RTL: true }] };
+  const cadence = (student.cadence || "weekly") as Cadence;
+  const info = cadenceInfo(cadence);
 
   const head: (string | number)[][] = [
     ["الطالب", student.name],
     ["الجوال", student.phone || "—"],
-    ["المرحلة", student.stage || "—"],
     ["ملاحظات", student.notes || "—"],
-    ["عدد لقاءات السنة", SESSIONS.length],
+    ["وحدة التقسيم", info.label],
+    [`عدد ${info.plural} في السنة`, periodCount(cadence)],
     [],
     [
       "المقرر",
       "الفن",
       "الوحدة",
       "حجم الحفظ",
-      "حفظ/لقاء",
+      `حفظ ${info.per}`,
       "المسار الثاني",
       "حجمه",
-      "المقدار/لقاء",
-      "عدد اللقاءات",
+      `المقدار ${info.per}`,
+      `عدد ${info.plural}`,
       "من",
       "إلى",
     ],
@@ -94,7 +101,7 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
   for (const p of picks) {
     const course = courses.find((c) => c.id === p.courseId);
     if (!course) continue;
-    const span = spanOf(course, p);
+    const span = spanOf(course, p, cadence);
     head.push([
       course.name,
       course.subject,
@@ -104,9 +111,9 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       course.has_expl ? course.expl_label : "—",
       explTotal(course) || "—",
       p.explPer || "—",
-      span.sessions,
-      span.startDay?.hijri ?? "—",
-      span.endDay?.hijri ?? "—",
+      span.count,
+      span.startPeriod?.first.hijri ?? "—",
+      span.endPeriod?.last.hijri ?? "—",
     ]);
   }
   XLSX.utils.book_append_sheet(
@@ -114,7 +121,11 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22]),
     "ملخص الخطة"
   );
-  XLSX.utils.book_append_sheet(wb, sheet(planRows(courses, picks), PLAN_WIDTHS), "جدول اللقاءات");
+  XLSX.utils.book_append_sheet(
+    wb,
+    sheet(planRows(courses, picks, cadence), PLAN_WIDTHS),
+    "جدول الخطة"
+  );
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }
@@ -128,15 +139,25 @@ export function allStudentsWorkbook(
   wb.Workbook = { Views: [{ RTL: true }] };
 
   const summary: (string | number)[][] = [
-    ["م", "الطالب", "الجوال", "المرحلة", "عدد المقررات", "اللقاءات المشغولة", "تاريخ التسجيل", "ملاحظات"],
+    [
+      "م",
+      "الطالب",
+      "الجوال",
+      "وحدة التقسيم",
+      "عدد المقررات",
+      "الفترات المشغولة",
+      "تاريخ التسجيل",
+      "ملاحظات",
+    ],
   ];
   const detail: (string | number)[][] = [
     [
       "الطالب",
-      "اللقاء",
+      "وحدة التقسيم",
+      "رقم الفترة",
       "التاريخ الهجري",
-      "اليوم",
-      "التاريخ الميلادي",
+      "من (ميلادي)",
+      "إلى (ميلادي)",
       "المقرر",
       "الحفظ",
       "الشرح / القراءة",
@@ -146,12 +167,14 @@ export function allStudentsWorkbook(
   ];
 
   entries.forEach(({ student, picks }, i) => {
-    const schedule = buildSchedule(courses, picks);
+    const cadence = (student.cadence || "weekly") as Cadence;
+    const info = cadenceInfo(cadence);
+    const schedule = buildSchedule(courses, picks, cadence);
     summary.push([
       i + 1,
       student.name,
       student.phone || "—",
-      student.stage || "—",
+      info.label,
       picks.length,
       schedule.filter((r) => r.portions.length > 0).length,
       new Date(student.created_at).toISOString().slice(0, 10),
@@ -161,10 +184,11 @@ export function allStudentsWorkbook(
       for (const p of r.portions) {
         detail.push([
           student.name,
+          info.label,
           r.no,
-          r.session.hijri,
-          r.session.weekday,
-          r.session.gregorian,
+          r.period.hijri,
+          r.period.first.gregorian,
+          r.period.last.gregorian,
           p.course.name,
           portionText(p.memoFrom, p.memoTo),
           portionText(p.explFrom, p.explTo),
@@ -193,7 +217,7 @@ export function allStudentsWorkbook(
   XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 14, 14, 12, 16, 14, 30]), "الطلاب");
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(detail, [24, 8, 22, 12, 14, 26, 14, 16, 14, 10]),
+    sheet(detail, [24, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),
     "تفاصيل الخطط"
   );
   XLSX.utils.book_append_sheet(wb, sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12]), "المقررات");

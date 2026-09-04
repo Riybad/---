@@ -75,6 +75,7 @@ const SCHEMA = `
     phone TEXT NOT NULL DEFAULT '',
     stage TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
+    cadence TEXT NOT NULL DEFAULT 'weekly',
     token TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -88,6 +89,7 @@ const SCHEMA = `
     expl_per INTEGER NOT NULL DEFAULT 0,
     start_session INTEGER NOT NULL DEFAULT 0
   );
+  ALTER TABLE students ADD COLUMN IF NOT EXISTS cadence TEXT NOT NULL DEFAULT 'weekly';
   CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
 `;
 
@@ -228,6 +230,8 @@ export type Student = {
   phone: string;
   stage: string;
   notes: string;
+  /** وحدة التقسيم التي اختارها الطالب: daily | weekly | monthly */
+  cadence: string;
   token: string;
   created_at: Date;
   updated_at: Date;

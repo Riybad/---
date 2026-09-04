@@ -4,7 +4,7 @@ import CopyButton from "@/components/CopyButton";
 import { getRequestToken } from "@/lib/db";
 import { money, fmtDate, STATUS_LABEL, STATUS_STYLE } from "@/lib/format";
 import { getCustodyStats, getTotals, listCustodies, listStudents, listTransactions } from "@/lib/queries";
-import { SESSIONS, YEAR_SESSIONS_LABEL } from "@/lib/calendar";
+import { YEAR_END, YEAR_START } from "@/lib/calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -58,10 +58,9 @@ export default async function DashboardPage() {
       <section className="card p-5">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <h2 className="page-title text-lg">خطط الطلاب — حفظ وشرح</h2>
+            <h2 className="page-title text-lg">خطط الطلاب</h2>
             <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-              {YEAR_SESSIONS_LABEL} — من {SESSIONS[0]?.hijri} إلى{" "}
-              {SESSIONS[SESSIONS.length - 1]?.hijri}
+              دراسة ذاتية على مدار السنة — من {YEAR_START.hijri} إلى {YEAR_END.hijri}
             </p>
           </div>
           <div className="ms-auto flex flex-wrap gap-2">
