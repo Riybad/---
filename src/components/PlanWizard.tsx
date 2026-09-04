@@ -64,6 +64,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   }, [plan, courses]);
 
   const done = plan.length;
+  /** المقررات التي لم يقسّمها بعد — الخطة لا تُحفظ قبل أن تكتمل */
+  const remainingCourses = courses.filter((c) => !plan.some((e) => e.courseId === c.id));
   const current = courses.find((c) => c.id === currentId) ?? null;
   const currentIndex = plan.findIndex((e) => e.courseId === currentId);
 
@@ -132,7 +134,6 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                 className="input"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="مثال: عبدالله محمد العتيبي"
                 autoFocus
               />
             </div>
@@ -192,7 +193,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
               {done === 0 ? "بأي مقرر تحب تبدأ؟" : "اختر المقرر التالي"}
             </h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              اضغط على المقرر لتقسيمه. تقدر تقسّم مقررًا واحدًا أو كل المقررات.
+              اضغط على المقرر لتقسيمه — واحدًا تلو الآخر حتى تقسّم المقررات كلها.
             </p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
@@ -233,11 +234,17 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             })}
           </div>
           <YearStrip picks={picks} courses={courses} colorOf={colorOf} cadence={cadence} />
+          {remainingCourses.length > 0 && (
+            <p className="text-sm font-semibold" style={{ color: "var(--brand-amber)" }}>
+              بقي لك {remainingCourses.length === 1 ? "مقرر واحد" : `${remainingCourses.length} مقررات`}:{" "}
+              {remainingCourses.map((c) => c.name).join("، ")}
+            </p>
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               className="btn btn-good"
-              disabled={done === 0}
+              disabled={remainingCourses.length > 0}
               onClick={() => setStep("review")}
             >
               أنهيت التقسيم — راجع الخطة
@@ -284,6 +291,15 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
               <Fact label={`${info.plural} المشغولة`} value={`${used} من ${total}`} />
             </div>
             <YearStrip picks={picks} courses={courses} colorOf={colorOf} cadence={cadence} />
+            {total - planEnd > 0 && (
+              <p
+                className="rounded-lg px-3 py-2 text-sm"
+                style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}
+              >
+                تنتهي خطتك قبل نهاية السنة بـ{periodsLabel(total - planEnd, cadence)} — إن أردت
+                ملء السنة كلها فارجع وخفّف معدّل آخر مقرر.
+              </p>
+            )}
             <div>
               <label className="label">ملاحظة تحب تضيفها للمشرف (اختياري)</label>
               <textarea

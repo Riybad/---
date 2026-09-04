@@ -65,6 +65,11 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
   const byId = new Map(courses.map((c) => [c.id, c]));
   const seen = new Set<number>();
 
+  const missing = courses.filter((c) => !picks.some((p) => p.courseId === c.id));
+  if (missing.length > 0) {
+    return `الخطة ناقصة — لم تقسّم: ${missing.map((c) => c.name).join("، ")}`;
+  }
+
   // الطالب لا يدرس مقررين في وقت واحد: البداية تُشتقّ من الترتيب لا مما أرسله المتصفح
   let cursor = 0;
 
