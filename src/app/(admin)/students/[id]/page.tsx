@@ -38,7 +38,13 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
           <a className="btn btn-primary text-sm" href={`/api/export/khitta/${student.token}`}>
-            تصدير خطته إكسل
+            تصدير على القالب
+          </a>
+          <a
+            className="btn btn-ghost text-sm"
+            href={`/api/export/khitta/${student.token}?format=table`}
+          >
+            جدول تفصيلي
           </a>
           <CopyButton text={planUrl} label="نسخ رابط خطته" />
           <Link className="btn btn-ghost text-sm" href="/students">
