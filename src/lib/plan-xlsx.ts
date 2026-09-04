@@ -96,9 +96,6 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       `عدد ${info.plural}`,
       "من",
       "إلى",
-      "الشرح المعتمد",
-      "الشرح القرائي (رابط)",
-      "الشرح السماعي (رابط)",
     ],
   ];
   for (const p of picks) {
@@ -117,14 +114,11 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       span.count,
       span.startPeriod?.first.hijri ?? "—",
       span.endPeriod?.last.hijri ?? "—",
-      course.sharh_name || "—",
-      course.sharh_book_url || "",
-      course.sharh_video_url || "",
     ]);
   }
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22, 26, 40, 40]),
+    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22]),
     "ملخص الخطة"
   );
   XLSX.utils.book_append_sheet(
@@ -214,9 +208,6 @@ export function allStudentsWorkbook(
       "المسار الثاني",
       "حجمه",
       "الحالة",
-      "الشرح المعتمد",
-      "الشرح القرائي (رابط)",
-      "الشرح السماعي (رابط)",
     ],
   ];
   for (const c of courses) {
@@ -228,9 +219,6 @@ export function allStudentsWorkbook(
       c.has_expl ? c.expl_label : "—",
       explTotal(c) || "—",
       c.active ? "مفعّل" : "موقوف",
-      c.sharh_name || "—",
-      c.sharh_book_url || "",
-      c.sharh_video_url || "",
     ]);
   }
 
@@ -242,7 +230,7 @@ export function allStudentsWorkbook(
   );
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12, 26, 40, 40]),
+    sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12]),
     "المقررات"
   );
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");
