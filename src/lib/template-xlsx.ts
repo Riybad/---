@@ -1,7 +1,7 @@
 import fs from "fs";
 import path from "path";
 import ExcelJS from "exceljs";
-import { CALENDAR, cadenceInfo, periodsOf } from "./calendar";
+import { CALENDAR, periodsOf } from "./calendar";
 import type { Cadence } from "./calendar";
 import { buildSchedule, portionText, type Course, type Pick } from "./plan";
 import type { Student } from "./db";
@@ -155,9 +155,8 @@ export async function templateWorkbook(
     }
   });
 
-  const info = cadenceInfo(cadence);
-  ws.getCell("O3").value = `خطة ${student.name} — تقسيم ${info.label}`;
-
+  // أعلى الورقة (الموازنة المالية والمعطيات) يُترك كما هو ولا يُمسّ —
+  // اسم الطالب يظهر في اسم الورقة وحده
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
 }
