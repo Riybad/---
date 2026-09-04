@@ -14,11 +14,15 @@ export const TEMPLATE_PATH = path.join(process.cwd(), "docs", "الخطة-الز
  */
 const MONTH_ROWS = [18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54];
 
-/** الصفوف 1..13 هي «إجمالي الموازنة المالية» و«المعطيات» — تُحذف من المخرج */
-const TOP_ROWS_TO_DELETE = 13;
-/** الأعمدة AS..BF بعد شبكة الأيام — تُحذف من المخرج */
-const SIDE_COLS_FROM = 45; // AS
-const SIDE_COLS_COUNT = 14; // AS..BF
+/**
+ * ما يُحذف من القالب في المخرج (بإحداثيات القالب الأصلي، والترتيب مهم):
+ * دليل الألوان (صفّان مدموجان)، ثم الصفوف العلوية (الموازنة المالية والمعطيات)،
+ * ثم الأعمدة الجانبية الملوّنة بعد شبكة الأيام، ثم الشريط الخوخي في أول عمودين.
+ */
+const LEGEND_ROWS = { from: 57, count: 2 };
+const TOP_ROWS = { from: 1, count: 13 };
+const SIDE_COLS = { from: 45, count: 14 }; // AS..BF
+const LEAD_COLS = { from: 1, count: 2 }; // A..B
 
 const FIRST_COL = 9; // I
 const LAST_COL = 44; // AR
@@ -93,24 +97,38 @@ function withMergesRemapped(ws: ExcelJS.Worksheet, mutate: () => void, map: (m: 
   }
 }
 
-/** يحذف الصفوف العلوية (الموازنة المالية والمعطيات) ويزيح الدمج لأعلى */
-function deleteTopRows(ws: ExcelJS.Worksheet, count: number) {
+/**
+ * يحوّل مدى [a,b] بعد حذف الفترة [from, from+count-1]: ما قبل الفترة يبقى،
+ * ما بعدها ينزاح، وما داخلها يسقط — ويعيد null إذا لم يبقَ شيء.
+ */
+function shrink(a: number, b: number, from: number, count: number): [number, number] | null {
+  const end = from + count - 1;
+  const na = a < from ? a : a > end ? a - count : from;
+  const nb = b < from ? b : b > end ? b - count : from - 1;
+  return nb < na ? null : [na, nb];
+}
+
+/** يحذف صفوفًا من أي موضع ويعيد الدمج بعد إزاحته أو قصّه */
+function deleteRows(ws: ExcelJS.Worksheet, from: number, count: number) {
   withMergesRemapped(
     ws,
-    () => ws.spliceRows(1, count),
-    (m) => (m.top <= count ? null : { ...m, top: m.top - count, bottom: m.bottom - count })
+    () => ws.spliceRows(from, count),
+    (m) => {
+      const r = shrink(m.top, m.bottom, from, count);
+      return r ? { ...m, top: r[0], bottom: r[1] } : null;
+    }
   );
 }
 
-/**
- * يحذف الأعمدة الجانبية بعد آخر عمود في شبكة الأيام (AS..BF) — فارغة من القيم،
- * بقايا تلوين من التخطيط المالي. الدمج الذي يعبر الحد (شريط العنوان) يُقصّ عنده.
- */
-function deleteSideColumns(ws: ExcelJS.Worksheet, from: number, count: number) {
+/** يحذف أعمدة من أي موضع ويعيد الدمج بعد إزاحته أو قصّه */
+function deleteColumns(ws: ExcelJS.Worksheet, from: number, count: number) {
   withMergesRemapped(
     ws,
     () => ws.spliceColumns(from, count),
-    (m) => (m.left >= from ? null : { ...m, right: Math.min(m.right, from - 1) })
+    (m) => {
+      const c = shrink(m.left, m.right, from, count);
+      return c ? { ...m, left: c[0], right: c[1] } : null;
+    }
   );
 }
 
@@ -243,10 +261,10 @@ export async function templateWorkbook(
     }
   });
 
-  // أعلى الورقة (الموازنة المالية والمعطيات) يُحذف — تبقى الخطة الزمنية من عنوانها
-  deleteTopRows(ws, TOP_ROWS_TO_DELETE);
-  // والأعمدة الجانبية الملوّنة بعد الشبكة تُحذف
-  deleteSideColumns(ws, SIDE_COLS_FROM, SIDE_COLS_COUNT);
+  deleteRows(ws, LEGEND_ROWS.from, LEGEND_ROWS.count);
+  deleteRows(ws, TOP_ROWS.from, TOP_ROWS.count);
+  deleteColumns(ws, SIDE_COLS.from, SIDE_COLS.count);
+  deleteColumns(ws, LEAD_COLS.from, LEAD_COLS.count);
 
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
