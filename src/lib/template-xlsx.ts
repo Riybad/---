@@ -14,6 +14,9 @@ export const TEMPLATE_PATH = path.join(process.cwd(), "docs", "الخطة-الز
  */
 const MONTH_ROWS = [18, 21, 24, 27, 30, 33, 36, 39, 42, 45, 48, 51, 54];
 
+/** الصفوف 1..13 هي «إجمالي الموازنة المالية» و«المعطيات» — تُحذف من المخرج */
+const TOP_ROWS_TO_DELETE = 13;
+
 const FIRST_COL = 9; // I
 const LAST_COL = 44; // AR
 const LABEL_COL = 7; // G — مدموج مع H
@@ -30,6 +33,54 @@ function dayCells(ws: ExcelJS.Worksheet, row: number): { col: number; day: numbe
 }
 
 type Cell = { text: string; course: string };
+
+const WEEKEND_FILL: ExcelJS.Fill = {
+  type: "pattern",
+  pattern: "solid",
+  fgColor: { argb: "FFD9D9D9" },
+};
+const NO_FILL: ExcelJS.Fill = { type: "pattern", pattern: "none" };
+
+/** أعمدة الشبكة تبدأ بالجمعة ثم السبت وتتكرر كل سبعة */
+function isWeekend(col: number): boolean {
+  return (col - FIRST_COL) % 7 < 2;
+}
+
+/**
+ * توحيد الألوان: أيام الجمعة والسبت رمادية كما هي، وبقية الخلايا بيضاء —
+ * تُزال شرائط الأحداث الملوّنة من صف التواريخ وصفّي التعبئة. وأرقام الأيام
+ * التي كانت بخط أبيض فوق شريط داكن تُعاد إلى الخط الأسود حتى لا تختفي.
+ */
+function whitenMonth(ws: ExcelJS.Worksheet, row: number, cells: { col: number }[]) {
+  for (const { col } of cells) {
+    const day = ws.getCell(row, col);
+    day.fill = isWeekend(col) ? WEEKEND_FILL : NO_FILL;
+    const color = day.font?.color as { argb?: string; theme?: number } | undefined;
+    if (color && (color.argb === "FFFFFFFF" || color.theme === 0)) {
+      day.font = { ...day.font, color: { theme: 1 } };
+    }
+    ws.getCell(row + 1, col).fill = NO_FILL;
+    ws.getCell(row + 2, col).fill = NO_FILL;
+  }
+}
+
+/**
+ * يحذف الصفوف العلوية (الموازنة المالية والمعطيات). spliceRows في ExcelJS
+ * ينقل القيم والتنسيق لكنه يُسقط الدمج، فنسجّل الدمج ونفكّه ثم نعيده مُزاحًا.
+ */
+function deleteTopRows(ws: ExcelJS.Worksheet, count: number) {
+  const all = Object.values(
+    (ws as unknown as { _merges: Record<string, { model: ExcelJS.Location } | undefined> })._merges ?? {}
+  )
+    .map((m) => m?.model)
+    .filter((m): m is ExcelJS.Location => !!m);
+  for (const m of all) ws.unMergeCells(m.top, m.left, m.bottom, m.right);
+  ws.spliceRows(1, count);
+  for (const m of all) {
+    if (m.top <= count) continue;
+    ws.mergeCells(m.top - count, m.left, m.bottom - count, m.right);
+  }
+}
 
 /**
  * صفوف التعبئة فيها دمج مسبق يرسم شرائط الأحداث (المبيت، العشر الأواخر،
@@ -60,6 +111,7 @@ function unmergeFillRow(ws: ExcelJS.Worksheet, row: number) {
 function style(cell: ExcelJS.Cell, color: string) {
   cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true, readingOrder: "rtl" };
   cell.font = { name: "Arial", size: 8, bold: true, color: { argb: color } };
+  cell.fill = NO_FILL;
 }
 
 /**
@@ -116,6 +168,7 @@ export async function templateWorkbook(
 
     unmergeFillRow(ws, row + 1);
     unmergeFillRow(ws, row + 2);
+    whitenMonth(ws, row, cells);
     ws.getCell(row + 1, LABEL_COL).value = "الحفظ";
     ws.getCell(row + 2, LABEL_COL).value = "الشرح";
     // ارتفاع الصفوف ثابت في القالب (20.25) فلا يسع اسم المقرر فوق الأرقام
@@ -158,8 +211,9 @@ export async function templateWorkbook(
     }
   });
 
-  // أعلى الورقة (الموازنة المالية والمعطيات) يُترك كما هو ولا يُمسّ —
-  // اسم الطالب يظهر في اسم الورقة وحده
+  // أعلى الورقة (الموازنة المالية والمعطيات) يُحذف — تبقى الخطة الزمنية من عنوانها
+  deleteTopRows(ws, TOP_ROWS_TO_DELETE);
+
   const out = await wb.xlsx.writeBuffer();
   return Buffer.from(out);
 }
