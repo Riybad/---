@@ -2,6 +2,7 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { savePlan } from "@/app/plan-actions";
+import CourseResources from "@/components/CourseResources";
 import { CADENCES, cadenceInfo, gregShort, periodsOf, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import {
@@ -224,6 +225,11 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                     {c.subject && <span>{c.subject} · </span>}
                     {trackSummary(c)}
                   </div>
+                  {c.sharh_name && (
+                    <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+                      📖 {c.sharh_name}
+                    </div>
+                  )}
                   {span?.endPeriod && (
                     <div className="mt-2 text-xs font-semibold" style={{ color: colorOf(c.id) }}>
                       {periodsLabel(span.count, cadence)} · ينتهي {span.endPeriod?.hijri}
@@ -551,6 +557,16 @@ function SplitCourse({
           : "يبدأ بعد أن تُنهي المقرر السابق — لا تدرس مقررين في وقت واحد."}
         {" "}المتبقّي من السنة: <strong>{periodsLabel(remaining, cadence)}</strong>.
       </p>
+
+      <div className="rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
+        <div className="label">تدرس منه</div>
+        <CourseResources course={course} />
+        {!course.sharh_name && !course.recitation_name && (
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            لم يُحدَّد شرح لهذا المقرر بعد.
+          </span>
+        )}
+      </div>
 
       <div className="flex flex-wrap gap-2">
         {presets.map((p) => (

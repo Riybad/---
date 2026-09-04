@@ -12,6 +12,13 @@ export type Course = {
   expl_total: number;
   /** مسمّى المسار الثاني: «شرح» أو «قراءة» */
   expl_label: string;
+  /** التسجيل الصوتي للمتن (للحفظ): من يقرؤه ورابطه */
+  recitation_name: string;
+  recitation_url: string;
+  /** الشرح: الشارح، ورابط الكتاب، ورابط المرئيات */
+  sharh_name: string;
+  sharh_book_url: string;
+  sharh_video_url: string;
   has_memo: boolean;
   has_expl: boolean;
   sort_order: number;
