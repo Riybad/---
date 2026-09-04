@@ -97,21 +97,27 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
   }
 
   const token = newPlanToken();
-  const rows = await q(
-    `INSERT INTO students (name, phone, stage, notes, cadence, token)
-     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
-    [name, phone, stage, notes, cadence, token]
+  // الطالب وبنود خطته في استعلام واحد: إما يُحفظ كله أو لا شيء، وبلا ذهاب وإياب
+  // متكرر إلى القاعدة عندما يدخل عدة طلاب في وقت واحد
+  const values = picks
+    .map((_, i) => {
+      const b = 7 + i * 5;
+      return `($${b}::int, $${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int)`;
+    })
+    .join(", ");
+  await q(
+    `WITH s AS (
+       INSERT INTO students (name, phone, stage, notes, cadence, token)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
+     )
+     INSERT INTO plan_items (student_id, course_id, ord, memo_per, expl_per, start_session)
+     SELECT s.id, v.course_id, v.ord, v.memo_per, v.expl_per, v.start_session
+     FROM s, (VALUES ${values}) AS v(course_id, ord, memo_per, expl_per, start_session)`,
+    [
+      name, phone, stage, notes, cadence, token,
+      ...picks.flatMap((p, i) => [p.courseId, i, p.memoPer, p.explPer, p.start]),
+    ]
   );
-  const studentId = rows[0].id as number;
-
-  for (let i = 0; i < picks.length; i++) {
-    const p = picks[i];
-    await q(
-      `INSERT INTO plan_items (student_id, course_id, ord, memo_per, expl_per, start_session)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [studentId, p.courseId, i, p.memoPer, p.explPer, p.start]
-    );
-  }
 
   revalidatePath("/", "layout");
   redirect(`/khitta/${token}`);

@@ -325,7 +325,9 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             </div>
           </div>
 
-          <div className="card overflow-x-auto">
+          <div className="card">
+            {/* حاوية سحب مستقلة: overflow:hidden في البطاقة يطغى على السحب لو وُضع عليها */}
+            <div className="overflow-x-auto">
             <table className="table">
               <thead>
                 <tr>
@@ -379,6 +381,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                   ))}
               </tbody>
             </table>
+            </div>
           </div>
         </form>
       )}
@@ -534,7 +537,7 @@ function SplitCourse({
     <div className="card p-5 grid gap-5">
       <div className="flex items-start gap-3">
         <span className="mt-1 h-4 w-4 shrink-0 rounded-full" style={{ background: color }} />
-        <div>
+        <div className="min-w-0">
           <h2 className="text-lg font-bold">{course.name}</h2>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             {course.subject && <span>{course.subject} · </span>}
@@ -657,10 +660,12 @@ function Stepper2({
   return (
     <div>
       <label className="label">{label}</label>
-      <div className="flex items-center gap-3">
+      {/* الأزرار في سطر وشريط السحب في سطر تحته — صف واحد كان يوسّع البطاقة
+          أكثر من شاشة الجوال فتُقصّ أطرافها */}
+      <div className="flex items-center justify-center gap-3">
         <button
           type="button"
-          className="btn btn-ghost h-11 w-11 justify-center text-xl"
+          className="btn btn-ghost h-11 w-11 shrink-0 justify-center text-xl"
           onClick={() => onChange(clamp(value - 1))}
           aria-label="أنقص"
         >
@@ -676,22 +681,22 @@ function Stepper2({
         </div>
         <button
           type="button"
-          className="btn btn-ghost h-11 w-11 justify-center text-xl"
+          className="btn btn-ghost h-11 w-11 shrink-0 justify-center text-xl"
           onClick={() => onChange(clamp(value + 1))}
           aria-label="زد"
         >
           +
         </button>
-        <input
-          type="range"
-          min={0}
-          max={max}
-          value={value}
-          onChange={(e) => onChange(clamp(Number(e.target.value)))}
-          className="flex-1 accent-current"
-          style={{ accentColor: color }}
-        />
       </div>
+      <input
+        type="range"
+        min={0}
+        max={max}
+        value={value}
+        onChange={(e) => onChange(clamp(Number(e.target.value)))}
+        className="mt-2 w-full min-w-0 accent-current"
+        style={{ accentColor: color }}
+      />
     </div>
   );
 }
