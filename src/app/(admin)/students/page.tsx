@@ -1,4 +1,6 @@
 import Link from "next/link";
+import ConfirmButton from "@/components/ConfirmButton";
+import { deleteStudent } from "@/app/plan-actions";
 import { cadenceInfo, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import { listStudents, planCounts } from "@/lib/queries";
@@ -66,6 +68,7 @@ export default async function StudentsPage({
                 <th>التاريخ</th>
                 <th>الخطة</th>
                 <th>إكسل</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -97,6 +100,17 @@ export default async function StudentsPage({
                     <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
                       تفصيلي
                     </a>
+                  </td>
+                  <td>
+                    <form action={deleteStudent}>
+                      <input type="hidden" name="id" value={s.id} />
+                      <ConfirmButton
+                        message={`سيُحذف «${s.name}» وخطته كاملة نهائيًا.\n\nهل أنت متأكد؟`}
+                        className="btn btn-ghost px-2 py-1 text-xs"
+                      >
+                        حذف
+                      </ConfirmButton>
+                    </form>
                   </td>
                 </tr>
               ))}

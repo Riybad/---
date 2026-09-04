@@ -2,6 +2,7 @@ import { saveCourse, toggleCourse } from "@/app/plan-actions";
 import { explTotal, memoTotal, UNITS, unitLabel } from "@/lib/plan";
 import { listCourses } from "@/lib/queries";
 import type { Course } from "@/lib/plan";
+import ConfirmButton from "@/components/ConfirmButton";
 import CourseResources from "@/components/CourseResources";
 
 export const dynamic = "force-dynamic";
@@ -50,9 +51,16 @@ function CourseRow({ course }: { course: Course }) {
         {!course.active && <span className="badge badge-warning">موقوف</span>}
         <form action={toggleCourse} className="ms-auto">
           <input type="hidden" name="id" value={course.id} />
-          <button className="btn btn-ghost text-xs">
-            {course.active ? "إيقاف" : "تفعيل"}
-          </button>
+          {course.active ? (
+            <ConfirmButton
+              message={`سيُخفى «${course.name}» عن الطلاب الجدد.\n\nالخطط المحفوظة لا تتأثر. متابعة؟`}
+              className="btn btn-ghost text-xs"
+            >
+              إيقاف
+            </ConfirmButton>
+          ) : (
+            <button className="btn btn-ghost text-xs">تفعيل</button>
+          )}
         </form>
       </div>
       <div className="mb-3">

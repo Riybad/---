@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
+import ConfirmButton from "@/components/ConfirmButton";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
 import { deleteStudent, updateStudentNotes } from "@/app/plan-actions";
@@ -78,9 +79,21 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         <button className="btn btn-ghost w-fit text-sm">حفظ الملاحظات</button>
       </form>
 
-      <form action={deleteStudent} className="text-left">
+      <form action={deleteStudent} className="card flex flex-wrap items-center gap-3 p-5">
         <input type="hidden" name="id" value={student.id} />
-        <button className="btn btn-danger text-sm">حذف الطالب وخطته</button>
+        <div className="min-w-0">
+          <div className="font-bold">حذف الطالب وخطته</div>
+          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+            يمسح الطالب وخطته كاملة ولا يمكن التراجع. رابط خطته يتوقف عن العمل، وإن أراد خطة
+            جديدة يسجّل من رابط التسجيل من جديد.
+          </p>
+        </div>
+        <ConfirmButton
+          message={`سيُحذف «${student.name}» وخطته كاملة نهائيًا.\n\nهل أنت متأكد؟`}
+          className="btn btn-danger ms-auto text-sm"
+        >
+          حذف نهائيًا
+        </ConfirmButton>
       </form>
     </div>
   );
