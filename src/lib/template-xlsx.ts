@@ -118,6 +118,9 @@ export async function templateWorkbook(
     unmergeFillRow(ws, row + 2);
     ws.getCell(row + 1, LABEL_COL).value = "الحفظ";
     ws.getCell(row + 2, LABEL_COL).value = "الشرح";
+    // ارتفاع الصفوف ثابت في القالب (20.25) فلا يسع اسم المقرر فوق الأرقام
+    ws.getRow(row + 1).height = 30;
+    ws.getRow(row + 2).height = 30;
 
     for (const [offset, byDay] of [
       [1, memoByDay],
