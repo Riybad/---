@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
@@ -18,6 +19,11 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
   const picks = toPicks(items);
   const used = buildSchedule(courses, picks).filter((r) => r.portions.length > 0).length;
 
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const planUrl = `${proto}://${host}/khitta/${student.token}`;
+
   return (
     <div className="grid gap-5">
       <div className="flex flex-wrap items-center gap-3">
@@ -31,7 +37,7 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
           <a className="btn btn-primary text-sm" href={`/api/export/khitta/${student.token}`}>
             تصدير خطته إكسل
           </a>
-          <CopyButton text={`/khitta/${student.token}`} label="نسخ رابط خطته" />
+          <CopyButton text={planUrl} label="نسخ رابط خطته" />
           <Link className="btn btn-ghost text-sm" href="/students">
             رجوع
           </Link>

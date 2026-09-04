@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import Brand from "@/components/Brand";
 import CopyButton from "@/components/CopyButton";
@@ -19,6 +20,11 @@ export default async function StudentPlanPage({
   const [courses, items] = await Promise.all([listCourses(true), listPlanItems(student.id)]);
   const picks = toPicks(items);
 
+  const h = await headers();
+  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
+  const proto = h.get("x-forwarded-proto") ?? "http";
+  const planUrl = `${proto}://${host}/khitta/${token}`;
+
   return (
     <main className="sunny sunny-bg min-h-screen p-4">
       <div className="mx-auto grid w-full max-w-4xl gap-4">
@@ -29,7 +35,7 @@ export default async function StudentPlanPage({
               <a className="btn btn-primary text-sm" href={`/api/export/khitta/${token}`}>
                 تحميل الخطة إكسل
               </a>
-              <CopyButton text={`/khitta/${token}`} label="نسخ رابط خطتي" />
+              <CopyButton text={planUrl} label="نسخ رابط خطتي" />
             </div>
           </div>
           <div className="tamkeen-band mt-5 text-center">
@@ -37,6 +43,12 @@ export default async function StudentPlanPage({
           </div>
           <p className="mt-3 text-center text-sm" style={{ color: "var(--text-secondary)" }}>
             احتفظ برابط هذه الصفحة — ترجع له وقت ما تبي، والمشرف يشوف خطتك في اللوحة.
+          </p>
+          <p
+            className="mt-2 break-all text-center text-xs num"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {planUrl}
           </p>
         </div>
 

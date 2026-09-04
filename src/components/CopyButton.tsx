@@ -9,10 +9,12 @@ export default function CopyButton({ text, label = "نسخ الرابط" }: { te
       type="button"
       className="btn btn-ghost text-sm"
       onClick={async () => {
+        // المسارات النسبية تُحوَّل لرابط كامل حتى يعمل عند إرساله في واتساب
+        const url = text.startsWith("/") ? `${window.location.origin}${text}` : text;
         try {
-          await navigator.clipboard.writeText(text);
+          await navigator.clipboard.writeText(url);
         } catch {
-          window.prompt("انسخ الرابط يدويًا:", text);
+          window.prompt("انسخ الرابط يدويًا:", url);
         }
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);

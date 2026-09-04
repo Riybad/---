@@ -83,20 +83,35 @@ npm start              # يعمل على http://localhost:3000
 - **محليًا** (بدون أي إعداد): قاعدة Postgres مدمجة (PGlite) في `data/pg`، وملفات الفواتير في `data/uploads/` — انسخ مجلد `data/` دوريًا كنسخة احتياطية.
 - **على الاستضافة (Vercel)**: قاعدة بيانات Neon (مجانية) عبر `DATABASE_URL`، وملفات الفواتير في Vercel Blob عبر `BLOB_READ_WRITE_TOKEN` — كلاهما يُربط بنقرة من تبويب Storage في Vercel.
 
-## النشر على Vercel (مجاني)
+## النشر (مجانًا على Vercel)
 
-1. سجّل في vercel.com بحساب GitHub.
-2. Add New → Project → اختر هذا المستودع → Deploy.
-3. من صفحة المشروع → تبويب **Storage** → **Create Database** → **Neon** (Free) → Connect.
-4. من نفس التبويب → **Create Blob Store** → Connect.
-5. تبويب **Settings → Environment Variables** → أضف `ADMIN_PASSWORD` بكلمة مرور قوية.
-6. تبويب **Deployments** → أعد النشر (Redeploy) — وانتهيت.
+الفرع الذي فيه منصة الطلاب هو `claude/course-distribution-platform-97sx6u`.
+
+1. **استورد المشروع** — افتح [vercel.com/new](https://vercel.com/new) وسجّل بحساب GitHub، ثم اختر مستودع `Riybad/---` واضغط **Import**.
+2. **اختر الفرع** — في صفحة الاستيراد وسّع **Git Branch** واختر `claude/course-distribution-platform-97sx6u` (أو ادمج الفرع في الفرع الرئيسي أولًا). ثم **Deploy**.
+3. **اربط قاعدة البيانات** — من صفحة المشروع: تبويب **Storage** ← **Create Database** ← **Neon** (Free) ← **Connect**. يُضاف `DATABASE_URL` تلقائيًا.
+4. **اضبط كلمة المرور** — تبويب **Settings** ← **Environment Variables** ← أضف `ADMIN_PASSWORD` بكلمة مرور قوية (هذه كلمة دخولك للوحة، والطلاب لا يحتاجونها).
+5. **أعد النشر** — تبويب **Deployments** ← أحدث نشر ← **Redeploy** (لازم بعد إضافة قاعدة البيانات والمتغيرات).
+
+> إن كنت تريد رفع فواتير العهد أيضًا: تبويب **Storage** ← **Create Blob Store** ← **Connect**، ثم أعد النشر. منصة الطلاب لا تحتاجه.
+
+### الروابط بعد النشر
+
+بفرض أن نطاقك صار `https://<اسم-المشروع>.vercel.app`:
+
+| الرابط | لمن | ملاحظة |
+|---|---|---|
+| `https://<نطاقك>/khitta` | **للطلاب** — أرسله في القروب | ثابت، بلا حساب ولا كلمة مرور |
+| `https://<نطاقك>/` | لك | لوحة الإدارة — تطلب كلمة المرور |
+| `https://<نطاقك>/khitta/<رمز>` | لكل طالب | يُنشأ تلقائيًا بعد حفظ خطته |
+
+رابط الطلاب تلقاه جاهزًا للنسخ في أعلى لوحة التحكم بعد الدخول.
 
 ## الإعدادات (`.env`)
 
 | المتغير | الوصف |
 |---|---|
-| `ADMIN_PASSWORD` | كلمة مرور الدخول للوحة (الافتراضية `admin123` — غيّرها فورًا) |
+| `ADMIN_PASSWORD` | كلمة مرور الدخول للوحة (الافتراضية `admin123` — **غيّرها فورًا قبل النشر**) |
 | `DATABASE_URL` | رابط قاعدة Postgres السحابية (اختياري محليًا، إلزامي على Vercel) |
 | `BLOB_READ_WRITE_TOKEN` | مفتاح تخزين الملفات السحابي (يضاف تلقائيًا على Vercel) |
 | `AUTH_SECRET` | مفتاح توقيع الجلسات (اختياري) |
