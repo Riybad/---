@@ -4,8 +4,9 @@ import { notFound } from "next/navigation";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
 import { deleteStudent, updateStudentNotes } from "@/app/plan-actions";
-import { buildSchedule, sessionsLabel } from "@/lib/plan";
-import { YEAR_SESSIONS_LABEL } from "@/lib/calendar";
+import { buildSchedule, periodsLabel } from "@/lib/plan";
+import { cadenceInfo } from "@/lib/calendar";
+import type { Cadence } from "@/lib/calendar";
 import { getStudent, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +18,9 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
 
   const [courses, items] = await Promise.all([listCourses(true), listPlanItems(student.id)]);
   const picks = toPicks(items);
-  const used = buildSchedule(courses, picks).filter((r) => r.portions.length > 0).length;
+  const cadence = (student.cadence || "weekly") as Cadence;
+  const info = cadenceInfo(cadence);
+  const used = buildSchedule(courses, picks, cadence).filter((r) => r.portions.length > 0).length;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
@@ -46,20 +49,20 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="عدد المقررات" value={`${picks.length}`} />
-        <Stat label="اللقاءات المشغولة" value={sessionsLabel(used)} />
-        <Stat label="لقاءات السنة" value={YEAR_SESSIONS_LABEL} />
+        <Stat label={`${info.plural} المشغولة`} value={periodsLabel(used, cadence)} />
+        <Stat label="وحدة التقسيم" value={info.label} />
       </div>
 
       {picks.length > 0 && (
         <div className="card p-5">
           <h2 className="mb-3 font-bold">مقررات الخطة</h2>
-          <CourseSummary courses={courses} picks={picks} />
+          <CourseSummary courses={courses} picks={picks} cadence={cadence} />
         </div>
       )}
 
       <div className="card">
-        <h2 className="p-4 pb-0 font-bold">جدول اللقاءات</h2>
-        <PlanTable courses={courses} picks={picks} />
+        <h2 className="p-4 pb-0 font-bold">جدول الخطة</h2>
+        <PlanTable courses={courses} picks={picks} cadence={cadence} />
       </div>
 
       <form action={updateStudentNotes} className="card grid gap-3 p-5">

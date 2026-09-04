@@ -1,5 +1,7 @@
 import Link from "next/link";
-import { SESSIONS, YEAR_SESSIONS_LABEL } from "@/lib/calendar";
+import { YEAR_END, YEAR_START } from "@/lib/calendar";
+import { cadenceInfo } from "@/lib/calendar";
+import type { Cadence } from "@/lib/calendar";
 import { listStudents, planCounts } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,7 @@ export default async function StudentsPage({
         <div>
           <h1 className="page-title text-xl">الطلاب وخططهم</h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {YEAR_SESSIONS_LABEL} — من {SESSIONS[0]?.hijri} إلى {SESSIONS[SESSIONS.length - 1]?.hijri}
+            السنة من {YEAR_START.hijri} إلى {YEAR_END.hijri}
           </p>
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
@@ -53,7 +55,7 @@ export default async function StudentsPage({
                 <th className="w-12">م</th>
                 <th>الاسم</th>
                 <th>الجوال</th>
-                <th>المرحلة</th>
+                <th>وحدة التقسيم</th>
                 <th>عدد المقررات</th>
                 <th>تاريخ التسجيل</th>
                 <th></th>
@@ -67,7 +69,7 @@ export default async function StudentsPage({
                   <td className="num" dir="ltr">
                     {s.phone || "—"}
                   </td>
-                  <td>{s.stage || "—"}</td>
+                  <td>{cadenceInfo((s.cadence || "weekly") as Cadence).label}</td>
                   <td className="num">{counts.get(s.id) ?? 0}</td>
                   <td className="num" dir="ltr">
                     {new Date(s.created_at).toISOString().slice(0, 10)}

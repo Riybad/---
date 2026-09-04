@@ -2,23 +2,22 @@
 
 import { useActionState, useMemo, useState } from "react";
 import { savePlan } from "@/app/plan-actions";
-import { SESSIONS, gregShort } from "@/lib/calendar";
+import { CADENCES, cadenceInfo, gregShort, periodsOf, YEAR_END, YEAR_START } from "@/lib/calendar";
+import type { Cadence } from "@/lib/calendar";
 import {
   buildSchedule,
   explTotal,
   memoTotal,
+  periodCount,
+  periodsLabel,
   portionText,
-  sessionsLabel,
   sessionsNeeded,
   spanOf,
   suggestRate,
   unitLabel,
-  YEAR_SESSIONS,
   type Course,
   type Pick,
 } from "@/lib/plan";
-
-const STAGES = ["ابتدائي", "متوسط", "ثانوي", "جامعي فأعلى"];
 
 /** لون ثابت لكل مقرر حسب ترتيبه — يستعمل في الشريط والجدول */
 export const COURSE_COLORS = [
@@ -39,8 +38,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   const [step, setStep] = useState<"who" | "choose" | "split" | "review">("who");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [stage, setStage] = useState("");
   const [notes, setNotes] = useState("");
+  const [cadence, setCadence] = useState<Cadence>("weekly");
   const [draft, setDraft] = useState<Draft>({});
   const [currentId, setCurrentId] = useState<number | null>(null);
 
@@ -57,17 +56,20 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   );
   const done = picks.length;
   const current = courses.find((c) => c.id === currentId) ?? null;
+  const info = cadenceInfo(cadence);
+  const periods = useMemo(() => periodsOf(cadence), [cadence]);
+  const total = periods.length;
 
   /** أول لقاء فاضٍ بعد آخر مقرر مقسّم — لمن أراد ترتيب مقرراته واحدًا تلو الآخر */
-  const nextFreeSession = useMemo(() => {
+  const nextFreePeriod = useMemo(() => {
     let end = 0;
     for (const p of picks) {
       const c = courses.find((x) => x.id === p.courseId);
       if (!c) continue;
       end = Math.max(end, p.start + sessionsNeeded(c, p.memoPer, p.explPer));
     }
-    return Math.min(end, YEAR_SESSIONS - 1);
-  }, [picks, courses]);
+    return Math.min(end, total - 1);
+  }, [picks, courses, total]);
 
   function openCourse(course: Course) {
     setCurrentId(course.id);
@@ -77,8 +79,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       setDraft((d) => ({
         ...d,
         [course.id]: {
-          memoPer: course.has_memo ? suggestRate(memoTotal(course), YEAR_SESSIONS) : 0,
-          explPer: course.has_expl ? suggestRate(explTotal(course), YEAR_SESSIONS) : 0,
+          memoPer: course.has_memo ? suggestRate(memoTotal(course), total) : 0,
+          explPer: course.has_expl ? suggestRate(explTotal(course), total) : 0,
           start: 0,
         },
       }));
@@ -94,8 +96,11 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
     });
   }
 
-  const schedule = useMemo(() => buildSchedule(courses, picks), [courses, picks]);
-  const usedSessions = schedule.filter((r) => r.portions.length > 0).length;
+  const schedule = useMemo(
+    () => buildSchedule(courses, picks, cadence),
+    [courses, picks, cadence]
+  );
+  const used = schedule.filter((r) => r.portions.length > 0).length;
 
   return (
     <div className="grid gap-5">
@@ -104,13 +109,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       {step === "who" && (
         <div className="card p-5 grid gap-4">
           <div>
-            <h2 className="text-lg font-bold">أهلًا بك — عرّفنا بنفسك</h2>
+            <h2 className="text-lg font-bold">أهلًا بك</h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              بعدها نختار المقرر الذي تبدأ به، ونقسّمه معك على لقاءات السنة.
+              بعدها نختار المقرر الذي تبدأ به، ونقسّمه معك على السنة — دراسة ذاتية بمعدّل تختاره
+              أنت.
             </p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <div className="sm:col-span-2">
+          <div className="grid gap-3">
+            <div>
               <label className="label">الاسم الكامل</label>
               <input
                 className="input"
@@ -130,17 +136,33 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                 placeholder="05xxxxxxxx"
               />
             </div>
-            <div>
-              <label className="label">المرحلة (اختياري)</label>
-              <select className="input" value={stage} onChange={(e) => setStage(e.target.value)}>
-                <option value="">— اختر —</option>
-                {STAGES.map((s) => (
-                  <option key={s} value={s}>
-                    {s}
-                  </option>
-                ))}
-              </select>
+          </div>
+          <div>
+            <label className="label">كيف تحب تقسّم مقرراتك؟</label>
+            <div className="grid grid-cols-3 gap-2">
+              {CADENCES.map((c) => (
+                <button
+                  key={c.key}
+                  type="button"
+                  onClick={() => {
+                    setCadence(c.key);
+                    setDraft({});
+                  }}
+                  className="rounded-xl border py-3 text-sm font-bold transition"
+                  style={{
+                    borderColor: cadence === c.key ? "var(--brand-olive)" : "var(--hairline)",
+                    background:
+                      cadence === c.key ? "var(--brand-sage-soft)" : "var(--surface-1)",
+                    color: cadence === c.key ? "var(--brand-olive-strong)" : "var(--text-secondary)",
+                  }}
+                >
+                  {c.label}
+                </button>
+              ))}
             </div>
+            <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+              تحدّد مقدارك {info.per} — والخطة تُبنى على {periodsLabel(total, cadence)} في السنة.
+            </p>
           </div>
           <button
             type="button"
@@ -148,7 +170,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             disabled={name.trim().length < 3}
             onClick={() => setStep("choose")}
           >
-            التالي — اختيار المقرر
+            التالي
           </button>
         </div>
       )}
@@ -166,7 +188,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
           <div className="grid gap-3 sm:grid-cols-2">
             {courses.map((c) => {
               const d = draft[c.id];
-              const span = d ? spanOf(c, { courseId: c.id, ...d }) : null;
+              const span = d ? spanOf(c, { courseId: c.id, ...d }, cadence) : null;
               return (
                 <button
                   key={c.id}
@@ -190,16 +212,16 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                     {c.subject && <span>{c.subject} · </span>}
                     {trackSummary(c)}
                   </div>
-                  {span?.endDay && (
+                  {span?.endPeriod && (
                     <div className="mt-2 text-xs font-semibold" style={{ color: colorOf(c.id) }}>
-                      {sessionsLabel(span.sessions)} · ينتهي {span.endDay.hijri}
+                      {periodsLabel(span.count, cadence)} · ينتهي {span.endPeriod?.hijri}
                     </div>
                   )}
                 </button>
               );
             })}
           </div>
-          <YearStrip picks={picks} courses={courses} colorOf={colorOf} />
+          <YearStrip picks={picks} courses={courses} colorOf={colorOf} cadence={cadence} />
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -221,7 +243,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
           course={current}
           value={draft[current.id]}
           color={colorOf(current.id)}
-          afterPrevious={nextFreeSession}
+          cadence={cadence}
+          afterPrevious={nextFreePeriod}
           onChange={(v) => setDraft((d) => ({ ...d, [current.id]: v }))}
           onRemove={() => {
             removeCourse(current.id);
@@ -235,8 +258,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
         <form action={action} className="grid gap-4">
           <input type="hidden" name="name" value={name} />
           <input type="hidden" name="phone" value={phone} />
-          <input type="hidden" name="stage" value={stage} />
           <input type="hidden" name="notes" value={notes} />
+          <input type="hidden" name="cadence" value={cadence} />
           <input type="hidden" name="picks" value={JSON.stringify(picks)} />
 
           <div className="card p-5 grid gap-4">
@@ -244,9 +267,9 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             <div className="grid gap-2 sm:grid-cols-3 text-sm">
               <Fact label="الطالب" value={name} />
               <Fact label="عدد المقررات" value={`${done}`} />
-              <Fact label="اللقاءات المشغولة" value={`${usedSessions} من ${YEAR_SESSIONS}`} />
+              <Fact label={`${info.plural} المشغولة`} value={`${used} من ${total}`} />
             </div>
-            <YearStrip picks={picks} courses={courses} colorOf={colorOf} />
+            <YearStrip picks={picks} courses={courses} colorOf={colorOf} cadence={cadence} />
             <div>
               <label className="label">ملاحظة تحب تضيفها للمشرف (اختياري)</label>
               <textarea
@@ -275,7 +298,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             <table className="table">
               <thead>
                 <tr>
-                  <th className="w-12">اللقاء</th>
+                  <th className="w-12">{info.each}</th>
                   <th>التاريخ الهجري</th>
                   <th>الميلادي</th>
                   <th>المقرر</th>
@@ -289,9 +312,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                   .map((r) => (
                     <tr key={r.no}>
                       <td className="num">{r.no}</td>
-                      <td>{r.session.hijri}</td>
+                      <td>{r.period.hijri}</td>
                       <td className="num" dir="ltr">
-                        {gregShort(r.session.gregorian)}
+                        {r.period.gregorian.includes("→")
+                          ? r.period.gregorian
+                              .split(" → ")
+                              .map(gregShort)
+                              .join(" → ")
+                          : gregShort(r.period.gregorian)}
                       </td>
                       <td>
                         <div className="grid gap-1">
@@ -375,35 +403,49 @@ function Stepper({ step, done }: { step: string; done: number }) {
 }
 
 /** شريط السنة: 33 خانة تمثل لقاءات الدفعة، ملوّنة بحسب المقرر */
+/** شريط السنة: خانة لكل أسبوع مهما كانت وحدة التقسيم، ملوّنة بمقررات تلك المدة */
+const STRIP_CELLS = 52;
+
 function YearStrip({
   picks,
   courses,
   colorOf,
+  cadence,
 }: {
   picks: Pick[];
   courses: Course[];
   colorOf: (id: number) => string;
+  cadence: Cadence;
 }) {
-  const cells: string[][] = Array.from({ length: YEAR_SESSIONS }, () => []);
+  const periods = periodsOf(cadence);
+  const cells: string[][] = Array.from({ length: STRIP_CELLS }, () => []);
+  const lastDay = periods[periods.length - 1]?.last.index ?? 1;
+
   for (const p of picks) {
     const c = courses.find((x) => x.id === p.courseId);
     if (!c) continue;
     const n = sessionsNeeded(c, p.memoPer, p.explPer);
-    for (let k = 0; k < n && p.start + k < YEAR_SESSIONS; k++) {
-      cells[p.start + k].push(colorOf(c.id));
-    }
+    if (n === 0) continue;
+    const from = periods[Math.min(p.start, periods.length - 1)]?.first.index ?? 0;
+    const to = periods[Math.min(p.start + n - 1, periods.length - 1)]?.last.index ?? lastDay;
+    const a = Math.floor((from / (lastDay + 1)) * STRIP_CELLS);
+    const b = Math.min(STRIP_CELLS - 1, Math.floor((to / (lastDay + 1)) * STRIP_CELLS));
+    for (let i = a; i <= b; i++) if (!cells[i].includes(colorOf(c.id))) cells[i].push(colorOf(c.id));
   }
+
   return (
     <div>
-      <div className="mb-1 flex items-center justify-between text-xs" style={{ color: "var(--text-muted)" }}>
-        <span>أول لقاء: {SESSIONS[0]?.hijri}</span>
-        <span>آخر لقاء: {SESSIONS[YEAR_SESSIONS - 1]?.hijri}</span>
+      <div
+        className="mb-1 flex items-center justify-between text-xs"
+        style={{ color: "var(--text-muted)" }}
+      >
+        <span>{YEAR_START.hijri}</span>
+        <span>{YEAR_END.hijri}</span>
       </div>
       <div className="flex gap-[2px]">
         {cells.map((colors, i) => (
           <div
             key={i}
-            title={`اللقاء ${i + 1} — ${SESSIONS[i]?.hijri}`}
             className="h-6 flex-1 overflow-hidden rounded-[3px] border"
             style={{ borderColor: "var(--hairline)", background: "var(--surface-stripe)" }}
           >
@@ -421,6 +463,7 @@ function SplitCourse({
   course,
   value,
   color,
+  cadence,
   afterPrevious,
   onChange,
   onRemove,
@@ -429,26 +472,29 @@ function SplitCourse({
   course: Course;
   value: { memoPer: number; explPer: number; start: number };
   color: string;
-  /** أول لقاء بعد المقررات المقسّمة — لزر «يبدأ بعد المقرر السابق» */
+  cadence: Cadence;
+  /** أول فترة بعد المقررات المقسّمة — لزر «ابدأه بعد المقررات السابقة» */
   afterPrevious: number;
   onChange: (v: { memoPer: number; explPer: number; start: number }) => void;
   onRemove: () => void;
   onDone: () => void;
 }) {
-  const span = spanOf(course, { courseId: course.id, ...value });
-  const remaining = YEAR_SESSIONS - value.start;
+  const info = cadenceInfo(cadence);
+  const periods = periodsOf(cadence);
+  const span = spanOf(course, { courseId: course.id, ...value }, cadence);
+  const remaining = periods.length - value.start;
   const set = (patch: Partial<typeof value>) => onChange({ ...value, ...patch });
 
   const presets = [
-    { label: "على مهل", sessions: remaining },
-    { label: "متوازن", sessions: Math.max(1, Math.ceil(remaining / 2)) },
-    { label: "مكثّف", sessions: Math.max(1, Math.ceil(remaining / 4)) },
+    { label: "على مهل", count: remaining },
+    { label: "متوازن", count: Math.max(1, Math.ceil(remaining / 2)) },
+    { label: "مكثّف", count: Math.max(1, Math.ceil(remaining / 4)) },
   ];
 
-  function applyPreset(sessions: number) {
+  function applyPreset(count: number) {
     set({
-      memoPer: course.has_memo ? suggestRate(memoTotal(course), sessions) : 0,
-      explPer: course.has_expl ? suggestRate(explTotal(course), sessions) : 0,
+      memoPer: course.has_memo ? suggestRate(memoTotal(course), count) : 0,
+      explPer: course.has_expl ? suggestRate(explTotal(course), count) : 0,
     });
   }
 
@@ -460,7 +506,7 @@ function SplitCourse({
           <h2 className="text-lg font-bold">{course.name}</h2>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             {course.subject && <span>{course.subject} · </span>}
-            {trackSummary(course)} — كم تأخذ في اللقاء الواحد؟
+            {trackSummary(course)} — كم تأخذ {info.per}؟
           </p>
         </div>
       </div>
@@ -471,17 +517,18 @@ function SplitCourse({
             key={p.label}
             type="button"
             className="btn btn-ghost text-sm"
-            onClick={() => applyPreset(p.sessions)}
+            onClick={() => applyPreset(p.count)}
           >
-            {p.label} · {sessionsLabel(p.sessions)}
+            {p.label} · {periodsLabel(p.count, cadence)}
           </button>
         ))}
       </div>
 
       {course.has_memo && (
         <Stepper2
-          label={`الحفظ في كل لقاء — من ${unitLabel(memoTotal(course), course.unit)}`}
+          label={`الحفظ ${info.per} — من ${unitLabel(memoTotal(course), course.unit)}`}
           unit={course.unit}
+          each={info.each}
           max={memoTotal(course)}
           value={value.memoPer}
           color={color}
@@ -490,8 +537,9 @@ function SplitCourse({
       )}
       {course.has_expl && (
         <Stepper2
-          label={`ال${course.expl_label} في كل لقاء — من ${unitLabel(explTotal(course), course.unit)}`}
+          label={`ال${course.expl_label} ${info.per} — من ${unitLabel(explTotal(course), course.unit)}`}
           unit={course.unit}
+          each={info.each}
           max={explTotal(course)}
           value={value.explPer}
           color={color}
@@ -501,7 +549,7 @@ function SplitCourse({
 
       <div>
         <div className="flex flex-wrap items-baseline gap-2">
-          <label className="label">يبدأ من اللقاء</label>
+          <label className="label">يبدأ من</label>
           <span className="text-xs" style={{ color: "var(--text-muted)" }}>
             (المقررات تسير بالتوازي — أخّره فقط إن أردت دراسته لاحقًا)
           </span>
@@ -521,9 +569,9 @@ function SplitCourse({
           value={value.start}
           onChange={(e) => set({ start: Number(e.target.value) })}
         >
-          {SESSIONS.map((s, i) => (
-            <option key={i} value={i}>
-              اللقاء {i + 1} — {s.hijri} ({gregShort(s.gregorian)})
+          {periods.map((pd) => (
+            <option key={pd.index} value={pd.index}>
+              {pd.label} — {pd.hijri}
             </option>
           ))}
         </select>
@@ -533,24 +581,25 @@ function SplitCourse({
         className="rounded-xl p-4 text-sm"
         style={{ background: `${color}14`, border: `1px solid ${color}44` }}
       >
-        {span.sessions === 0 ? (
+        {span.count === 0 ? (
           <span style={{ color: "var(--critical)" }}>
             حدّد مقدارًا للحفظ أو لل{course.expl_label}.
           </span>
         ) : span.overflow ? (
           <span style={{ color: "var(--critical)" }}>
-            بهذا المعدل يحتاج المقرر {sessionsLabel(span.sessions)}، وهذا يتجاوز آخر لقاء في
-            السنة — زد المقدار أو قدّم البداية.
+            بهذا المعدل يحتاج المقرر {periodsLabel(span.count, cadence)}، وهذا يتجاوز آخر
+            {" "}{info.each} في السنة — زد المقدار أو قدّم البداية.
           </span>
         ) : (
           <>
             <div className="font-bold" style={{ color }}>
-              ينتهي المقرر في {sessionsLabel(span.sessions)}
+              ينتهي المقرر في {periodsLabel(span.count, cadence)}
             </div>
             <div className="mt-1" style={{ color: "var(--text-secondary)" }}>
-              من {span.startDay?.hijri} إلى {span.endDay?.hijri}
+              من {span.startPeriod?.first.hijri} إلى {span.endPeriod?.last.hijri}
               <span dir="ltr" className="num mx-1">
-                ({gregShort(span.startDay?.gregorian ?? "")} → {gregShort(span.endDay?.gregorian ?? "")})
+                ({gregShort(span.startPeriod?.first.gregorian ?? "")} →{" "}
+                {gregShort(span.endPeriod?.last.gregorian ?? "")})
               </span>
             </div>
           </>
@@ -561,7 +610,7 @@ function SplitCourse({
         <button
           type="button"
           className="btn btn-primary"
-          disabled={span.sessions === 0 || span.overflow}
+          disabled={span.count === 0 || span.overflow}
           onClick={onDone}
         >
           حفظ التقسيم
@@ -577,6 +626,7 @@ function SplitCourse({
 function Stepper2({
   label,
   unit,
+  each,
   max,
   value,
   color,
@@ -584,6 +634,8 @@ function Stepper2({
 }: {
   label: string;
   unit: string;
+  /** «اليوم» أو «الأسبوع» أو «الشهر» — يظهر تحت الرقم */
+  each: string;
   max: number;
   value: number;
   color: string;
@@ -607,7 +659,7 @@ function Stepper2({
             {value}
           </div>
           <div className="text-xs" style={{ color: "var(--text-muted)" }}>
-            {unit} / لقاء
+            {unit} / {each.replace("ال", "")}
           </div>
         </div>
         <button

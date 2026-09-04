@@ -1,5 +1,5 @@
-import { SESSIONS, SESSION_COUNT } from "./calendar";
-import type { CalDay } from "./calendar";
+import { cadenceInfo, periodsOf } from "./calendar";
+import type { Cadence, Period } from "./calendar";
 
 export type Course = {
   id: number;
@@ -27,12 +27,12 @@ export function explTotal(c: Course): number {
   return c.has_expl ? Math.max(0, c.expl_total) : 0;
 }
 
-/** اختيار الطالب لمقرر واحد: كم يأخذ في اللقاء، ومن أي لقاء يبدأ */
+/** اختيار الطالب لمقرر واحد: كم يأخذ في الفترة، ومن أي فترة يبدأ */
 export type Pick = {
   courseId: number;
   memoPer: number;
   explPer: number;
-  /** ترتيب اللقاء الذي يبدأ منه المقرر (0 = أول لقاء في السنة) */
+  /** ترتيب الفترة التي يبدأ منها المقرر (0 = أول فترة في السنة) */
   start: number;
 };
 
@@ -61,16 +61,23 @@ export function unitLabel(n: number, unit: string): string {
   return `${n} ${unit}${feminine ? "ً" : "ًا"}`;
 }
 
-/** صياغة عدد اللقاءات: لقاء / لقاءان / 5 لقاءات / 15 لقاءً */
-export function sessionsLabel(n: number): string {
-  if (n <= 0) return "لا لقاءات";
-  if (n === 1) return "لقاء واحد";
-  if (n === 2) return "لقاءان";
-  if (n <= 10) return `${n} لقاءات`;
-  return `${n} لقاءً`;
+const PERIOD_WORDS: Record<Cadence, [string, string, string, string]> = {
+  daily: ["يوم واحد", "يومان", "أيام", "يومًا"],
+  weekly: ["أسبوع واحد", "أسبوعان", "أسابيع", "أسبوعًا"],
+  monthly: ["شهر واحد", "شهران", "أشهر", "شهرًا"],
+};
+
+/** صياغة عدد الفترات: أسبوع واحد / أسبوعان / 5 أسابيع / 15 أسبوعًا */
+export function periodsLabel(n: number, cadence: Cadence): string {
+  const [one, two, few, many] = PERIOD_WORDS[cadence];
+  if (n <= 0) return "—";
+  if (n === 1) return one;
+  if (n === 2) return two;
+  if (n <= 10) return `${n} ${few}`;
+  return `${n} ${many}`;
 }
 
-/** عدد اللقاءات التي يستهلكها المقرر بهذا المعدل */
+/** عدد الفترات التي يستهلكها المقرر بهذا المعدل */
 export function sessionsNeeded(course: Course, memoPer: number, explPer: number): number {
   const a = memoPer > 0 ? Math.ceil(memoTotal(course) / memoPer) : 0;
   const b = explPer > 0 ? Math.ceil(explTotal(course) / explPer) : 0;
@@ -86,30 +93,32 @@ export function suggestRate(total: number, sessions: number): number {
 export type Span = {
   course: Course;
   pick: Pick;
-  sessions: number;
-  startDay: CalDay | null;
-  endDay: CalDay | null;
-  /** يتجاوز آخر لقاء في السنة */
+  /** عدد الفترات التي يستغرقها المقرر */
+  count: number;
+  startPeriod: Period | null;
+  endPeriod: Period | null;
+  /** يتجاوز آخر فترة في السنة */
   overflow: boolean;
 };
 
-export function spanOf(course: Course, pick: Pick): Span {
-  const sessions = sessionsNeeded(course, pick.memoPer, pick.explPer);
-  const start = Math.max(0, Math.min(pick.start, SESSION_COUNT - 1));
-  const endIdx = start + sessions - 1;
+export function spanOf(course: Course, pick: Pick, cadence: Cadence): Span {
+  const periods = periodsOf(cadence);
+  const count = sessionsNeeded(course, pick.memoPer, pick.explPer);
+  const start = Math.max(0, Math.min(pick.start, periods.length - 1));
+  const endIdx = start + count - 1;
   return {
     course,
     pick,
-    sessions,
-    startDay: sessions > 0 ? SESSIONS[start] ?? null : null,
-    endDay: sessions > 0 ? SESSIONS[Math.min(endIdx, SESSION_COUNT - 1)] ?? null : null,
-    overflow: sessions > 0 && endIdx > SESSION_COUNT - 1,
+    count,
+    startPeriod: count > 0 ? periods[start] ?? null : null,
+    endPeriod: count > 0 ? periods[Math.min(endIdx, periods.length - 1)] ?? null : null,
+    overflow: count > 0 && endIdx > periods.length - 1,
   };
 }
 
 export type Portion = {
   course: Course;
-  /** رقم اللقاء ضمن المقرر نفسه (يبدأ من 1) */
+  /** رقم الفترة ضمن المقرر نفسه (يبدأ من 1) */
   nth: number;
   memoFrom: number;
   memoTo: number;
@@ -118,8 +127,8 @@ export type Portion = {
 };
 
 export type ScheduleRow = {
-  session: CalDay;
-  /** ترتيب اللقاء في السنة (يبدأ من 1) */
+  period: Period;
+  /** ترتيب الفترة في السنة (يبدأ من 1) */
   no: number;
   portions: Portion[];
 };
@@ -131,17 +140,25 @@ function range(total: number, per: number, nth: number): [number, number] {
   return [from, Math.min(nth * per, total)];
 }
 
-/** يبني جدول السنة: لكل لقاء ما الذي يُحفظ ويُشرح فيه */
-export function buildSchedule(courses: Course[], picks: Pick[]): ScheduleRow[] {
+/** يبني جدول السنة: لكل فترة ما الذي يُحفظ ويُقرأ فيها */
+export function buildSchedule(
+  courses: Course[],
+  picks: Pick[],
+  cadence: Cadence
+): ScheduleRow[] {
   const byId = new Map(courses.map((c) => [c.id, c]));
-  const rows: ScheduleRow[] = SESSIONS.map((session, i) => ({ session, no: i + 1, portions: [] }));
+  const rows: ScheduleRow[] = periodsOf(cadence).map((period, i) => ({
+    period,
+    no: i + 1,
+    portions: [],
+  }));
 
   for (const pick of picks) {
     const course = byId.get(pick.courseId);
     if (!course) continue;
-    const { sessions, pick: p } = spanOf(course, pick);
-    for (let k = 0; k < sessions; k++) {
-      const idx = p.start + k;
+    const { count, pick: p } = spanOf(course, pick, cadence);
+    for (let k = 0; k < count; k++) {
+      const idx = Math.max(0, Math.min(p.start, rows.length - 1)) + k;
       if (idx >= rows.length) break;
       const [memoFrom, memoTo] = range(memoTotal(course), pick.memoPer, k + 1);
       const [explFrom, explTo] = range(explTotal(course), pick.explPer, k + 1);
@@ -158,4 +175,10 @@ export function portionText(from: number, to: number): string {
   return from === to ? `${from}` : `${from} – ${to}`;
 }
 
-export const YEAR_SESSIONS = SESSION_COUNT;
+/** عدد الفترات المتاحة في السنة حسب الوحدة */
+export function periodCount(cadence: Cadence): number {
+  return periodsOf(cadence).length;
+}
+
+export { cadenceInfo };
+export type { Cadence, Period };

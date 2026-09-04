@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Brand from "@/components/Brand";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
+import type { Cadence } from "@/lib/calendar";
 import { getStudentByToken, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -19,6 +20,7 @@ export default async function StudentPlanPage({
 
   const [courses, items] = await Promise.all([listCourses(true), listPlanItems(student.id)]);
   const picks = toPicks(items);
+  const cadence = (student.cadence || "weekly") as Cadence;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
@@ -54,12 +56,12 @@ export default async function StudentPlanPage({
 
         <div className="card sunny-card p-5">
           <h2 className="mb-3 font-bold">مقررات الخطة</h2>
-          <CourseSummary courses={courses} picks={picks} />
+          <CourseSummary courses={courses} picks={picks} cadence={cadence} />
         </div>
 
         <div className="card sunny-card">
-          <h2 className="p-4 pb-0 font-bold">جدول اللقاءات</h2>
-          <PlanTable courses={courses} picks={picks} />
+          <h2 className="p-4 pb-0 font-bold">جدول الخطة</h2>
+          <PlanTable courses={courses} picks={picks} cadence={cadence} />
         </div>
 
         <p className="text-center text-sm">

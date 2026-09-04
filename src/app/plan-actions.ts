@@ -5,13 +5,20 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { newPlanToken, q } from "@/lib/db";
 import { listCourses } from "@/lib/queries";
-import { explTotal, memoTotal, sessionsNeeded, UNITS, YEAR_SESSIONS } from "@/lib/plan";
+import { explTotal, memoTotal, periodCount, sessionsNeeded, UNITS } from "@/lib/plan";
+import type { Cadence } from "@/lib/calendar";
 
 /* ————— خطة الطالب (من الرابط العام) ————— */
 
 type SubmittedPick = { courseId: number; memoPer: number; explPer: number; start: number };
 
-function parsePicks(raw: string): SubmittedPick[] {
+const CADENCES: Cadence[] = ["daily", "weekly", "monthly"];
+
+function parseCadence(raw: string): Cadence {
+  return (CADENCES as string[]).includes(raw) ? (raw as Cadence) : "weekly";
+}
+
+function parsePicks(raw: string, total: number): SubmittedPick[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -30,7 +37,7 @@ function parsePicks(raw: string): SubmittedPick[] {
         courseId: int(o.courseId),
         memoPer: Math.max(0, int(o.memoPer)),
         explPer: Math.max(0, int(o.explPer)),
-        start: Math.min(Math.max(0, int(o.start)), YEAR_SESSIONS - 1),
+        start: Math.min(Math.max(0, int(o.start)), total - 1),
       };
     })
     .filter((p) => p.courseId > 0 && (p.memoPer > 0 || p.explPer > 0));
@@ -49,7 +56,9 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
   if (name.length < 3) return "فضلًا اكتب الاسم كاملًا";
   if (phone && !/^[0-9+\s-]{8,20}$/.test(phone)) return "رقم الجوال غير صحيح";
 
-  const picks = parsePicks(String(formData.get("picks") ?? "[]"));
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+  const total = periodCount(cadence);
+  const picks = parsePicks(String(formData.get("picks") ?? "[]"), total);
   if (picks.length === 0) return "لم تختر أي مقرر — ارجع واختر مقررًا واحدًا على الأقل";
 
   const courses = await listCourses();
@@ -72,16 +81,16 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
       return `مقدار ال${course.expl_label} في «${course.name}» أكبر من المقرر كاملًا`;
     }
     const needed = sessionsNeeded(course, p.memoPer, p.explPer);
-    if (p.start + needed > YEAR_SESSIONS) {
-      return `«${course.name}» لا ينتهي قبل آخر لقاء في السنة — زد المقدار أو قدّم بدايته`;
+    if (p.start + needed > total) {
+      return `«${course.name}» لا ينتهي قبل نهاية السنة — زد المقدار أو قدّم بدايته`;
     }
   }
 
   const token = newPlanToken();
   const rows = await q(
-    `INSERT INTO students (name, phone, stage, notes, token)
-     VALUES ($1, $2, $3, $4, $5) RETURNING id`,
-    [name, phone, stage, notes, token]
+    `INSERT INTO students (name, phone, stage, notes, cadence, token)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [name, phone, stage, notes, cadence, token]
   );
   const studentId = rows[0].id as number;
 
