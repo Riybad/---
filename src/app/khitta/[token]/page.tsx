@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
@@ -8,6 +9,16 @@ import type { Cadence } from "@/lib/calendar";
 import { getStudentByToken, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
+
+export const metadata: Metadata = {
+  title: "خطتي السنوية — نبغ",
+  description: "خطة الطالب السنوية: المقررات موزّعة على السنة بين الحفظ والشرح.",
+  openGraph: {
+    title: "خطتي السنوية — نبغ",
+    description: "خطة الطالب السنوية: المقررات موزّعة على السنة بين الحفظ والشرح.",
+    images: ["/logo-nabgh.png"],
+  },
+};
 
 export default async function StudentPlanPage({
   params,
