@@ -52,7 +52,38 @@ const SCHEMA = `
     file_path TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS courses (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    unit TEXT NOT NULL DEFAULT 'صفحة',
+    total INTEGER NOT NULL DEFAULT 0,
+    has_memo BOOLEAN NOT NULL DEFAULT TRUE,
+    has_expl BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE
+  );
+  CREATE TABLE IF NOT EXISTS students (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
+    stage TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE TABLE IF NOT EXISTS plan_items (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    ord INTEGER NOT NULL DEFAULT 0,
+    memo_per INTEGER NOT NULL DEFAULT 0,
+    expl_per INTEGER NOT NULL DEFAULT 0,
+    start_session INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
 `;
+
 
 declare global {
   // eslint-disable-next-line no-var
@@ -79,7 +110,30 @@ async function connect(): Promise<QueryClient> {
   for (const stmt of SCHEMA.split(";")) {
     if (stmt.trim()) await client.query(stmt);
   }
+  await seedCourses(client);
   return client;
+}
+
+/** المقررات الافتراضية — تُزرع مرة واحدة فقط، وتبقى قابلة للتعديل من اللوحة */
+const DEFAULT_COURSES: [string, string, number, boolean, boolean][] = [
+  ["أخصر المختصرات", "باب", 60, true, true],
+  ["سلم الوصول", "بيت", 220, true, true],
+  ["القرآن سؤال وجواب", "سؤال", 200, false, true],
+  ["موسوعة التاريخ الإسلامي", "فصل", 40, false, true],
+  ["الآجرومية", "باب", 32, true, true],
+];
+
+async function seedCourses(client: QueryClient): Promise<void> {
+  const rows = (await client.query("SELECT COUNT(*)::int AS n FROM courses")).rows;
+  if (Number(rows[0]?.n ?? 0) > 0) return;
+  for (let i = 0; i < DEFAULT_COURSES.length; i++) {
+    const [name, unit, total, hasMemo, hasExpl] = DEFAULT_COURSES[i];
+    await client.query(
+      `INSERT INTO courses (name, unit, total, has_memo, has_expl, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [name, unit, total, hasMemo, hasExpl, i]
+    );
+  }
 }
 
 export async function q(text: string, params: unknown[] = []): Promise<Row[]> {
@@ -154,4 +208,30 @@ export type Invoice = {
 
 export function newCloseToken(): string {
   return crypto.randomBytes(12).toString("hex");
+}
+
+export type Student = {
+  id: number;
+  name: string;
+  phone: string;
+  stage: string;
+  notes: string;
+  token: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type PlanItem = {
+  id: number;
+  student_id: number;
+  course_id: number;
+  ord: number;
+  memo_per: number;
+  expl_per: number;
+  start_session: number;
+};
+
+/** رمز الرابط الخاص بخطة الطالب */
+export function newPlanToken(): string {
+  return crypto.randomBytes(9).toString("hex");
 }

@@ -1,64 +1,88 @@
 @import "tailwindcss";
 
-/* هوية «طُود» — ألوان صيفية دافئة مأخوذة من كشف حساب العهدة */
+/* هوية «تمكين» — الألوان مأخوذة حرفيًا من ملف الخطة الزمنية (تمكين 48) */
 :root {
-  --page: #fdf7ec;
+  --page: #f7f8f1;
   --surface-1: #ffffff;
-  --surface-stripe: #fdf3e2;
-  --text-primary: #2c2213;
-  --text-secondary: #5f5138;
-  --text-muted: #8a7a5e;
-  --hairline: #eddfc6;
-  --border-ring: rgba(90, 62, 20, 0.14);
-  --accent: #1e7fa3;
-  --accent-strong: #14607d;
-  --brand-orange: #b8661d;
-  --brand-orange-strong: #9c5314;
-  --brand-green: #43903a;
-  --table-head: #bd7330;
+  --surface-stripe: #f1f4e6;
+  --text-primary: #22280f;
+  --text-secondary: #4d5533;
+  --text-muted: #7d8560;
+  --hairline: #dde3c8;
+  --border-ring: rgba(79, 98, 40, 0.16);
+  --accent: #31869b;          /* مبيت */
+  --accent-strong: #276b7c;
+  --brand-olive: #4f6228;     /* عناوين الملف */
+  --brand-olive-strong: #3d4c1f;
+  --brand-sage: #c2d69b;      /* رؤوس الجداول الفرعية */
+  --brand-sage-soft: #d8e4bc; /* دفعة 42 */
+  --brand-peach: #fabf8f;     /* شريط «النخب الناشئة (تمكين)» */
+  --brand-amber: #974806;     /* نص أيام الأسبوع */
+  --brand-gold: #ffc000;      /* الأيام القرآنية */
+  --brand-logo: #c8a840;      /* ذهب شعار نبغ */
+  --brand-logo-soft: #e0cf95;
+  --brand-lavender: #e4dfec;  /* لقاءات تمكين */
+  --brand-red: #953734;       /* ملتقى */
+  --table-head: #4f6228;
   --table-head-text: #ffffff;
-  --totals-bg: #e6f2dd;
-  --good: #0ca30c;
-  --good-text: #1e7a1e;
-  --warning: #fab219;
-  --serious: #ec835a;
-  --critical: #d03b3b;
+  --totals-bg: #d8e4bc;
+  --good: #4f6228;
+  --good-text: #3d4c1f;
+  --warning: #ffc000;
+  --serious: #fabf8f;
+  --critical: #953734;
+  /* توافق مع الأسماء القديمة المستعملة في صفحات العهد */
+  --brand-orange: #974806;
+  --brand-orange-strong: #7d3b05;
+  --brand-green: #4f6228;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #17120c;
-    --surface-1: #221b12;
-    --surface-stripe: #2a2115;
-    --text-primary: #f7f0e2;
-    --text-secondary: #d3c5aa;
-    --text-muted: #a08c68;
-    --hairline: #3a2f1e;
-    --border-ring: rgba(255, 226, 178, 0.12);
-    --accent: #4db6d8;
-    --accent-strong: #7fcbe4;
-    --brand-orange: #d98a3a;
-    --brand-orange-strong: #e69c52;
-    --brand-green: #6cb862;
-    --table-head: #8a5a24;
-    --totals-bg: #253a1e;
-    --good-text: #4cbb4c;
+    --page: #14180c;
+    --surface-1: #1d2213;
+    --surface-stripe: #242a17;
+    --text-primary: #f0f3e4;
+    --text-secondary: #cbd3b1;
+    --text-muted: #99a37a;
+    --hairline: #343c22;
+    --border-ring: rgba(216, 228, 188, 0.14);
+    --accent: #63b6c8;
+    --accent-strong: #8ccddb;
+    --brand-olive: #8fac5c;
+    --brand-olive-strong: #a6c274;
+    --brand-sage: #6f8a3f;
+    --brand-sage-soft: #4a5c2a;
+    --brand-peach: #d9a273;
+    --brand-amber: #d38a3e;
+    --brand-lavender: #4a4459;
+    --brand-logo: #d9bc63;
+    --brand-logo-soft: #8a7433;
+    --table-head: #3d4c1f;
+    --totals-bg: #2f3a1c;
+    --good-text: #9ec471;
+    --brand-orange: #d38a3e;
+    --brand-orange-strong: #e0a35e;
+    --brand-green: #8fac5c;
   }
 }
 
-/* الصفحات العامة (الموظفين وتسجيل الدخول) تبقى بألوان النهار مثل الكشف دائمًا */
+/* الصفحات العامة (الطلاب وتسجيل الدخول) تبقى بألوان النهار دائمًا */
 .sunny {
-  --page: #fdf7ec;
+  --page: #f7f8f1;
   --surface-1: #ffffff;
-  --text-primary: #2c2213;
-  --text-secondary: #5f5138;
-  --text-muted: #8a7a5e;
-  --hairline: #eddfc6;
-  --border-ring: rgba(90, 62, 20, 0.18);
-  --accent: #1e7fa3;
-  --brand-orange: #b8661d;
-  --brand-green: #43903a;
-  --good-text: #1e7a1e;
+  --text-primary: #22280f;
+  --text-secondary: #4d5533;
+  --text-muted: #7d8560;
+  --hairline: #dde3c8;
+  --border-ring: rgba(79, 98, 40, 0.2);
+  --accent: #31869b;
+  --brand-olive: #4f6228;
+  --brand-logo: #c8a840;
+  --brand-logo-soft: #e0cf95;
+  --brand-orange: #974806;
+  --brand-green: #4f6228;
+  --good-text: #3d4c1f;
   color: var(--text-primary);
 }
 
@@ -109,7 +133,7 @@ body {
   opacity: 0.88;
 }
 .btn-primary {
-  background: var(--brand-orange);
+  background: var(--brand-olive);
   color: #fff;
 }
 .btn-ghost {
@@ -122,7 +146,7 @@ body {
   color: #fff;
 }
 .btn-good {
-  background: var(--brand-green);
+  background: var(--brand-amber);
   color: #fff;
 }
 
@@ -207,13 +231,25 @@ body {
 }
 
 .page-title {
-  color: var(--brand-green);
+  color: var(--brand-olive);
   font-weight: 800;
+}
+
+/* شريط العنوان بلون «النخب الناشئة (تمكين)» في الملف */
+.tamkeen-band {
+  background: linear-gradient(90deg, var(--brand-peach), var(--brand-logo-soft));
+  color: #22280f;
+  font-weight: 800;
+  border-radius: 10px;
+  padding: 0.5rem 1rem;
 }
 
 /* خلفية الصفحات العامة — رسمة الموسم */
 .sunny-bg {
-  background: url("/bg.jpg") center / cover no-repeat fixed;
+  background:
+    radial-gradient(1200px 600px at 80% -10%, rgba(250, 191, 143, 0.35), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(194, 214, 155, 0.45), transparent 60%),
+    var(--page);
 }
 .sunny-card {
   background: rgba(255, 255, 255, 0.94);
