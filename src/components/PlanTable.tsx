@@ -12,6 +12,7 @@ import {
   type Pick,
 } from "@/lib/plan";
 import { COURSE_COLORS } from "@/components/PlanWizard";
+import CourseResources from "@/components/CourseResources";
 
 export function courseColor(courses: Course[], id: number): string {
   const i = courses.findIndex((c) => c.id === id);
@@ -74,6 +75,9 @@ export function CourseSummary({
                 {gregShort(span.startPeriod?.first.gregorian ?? "")} →{" "}
                 {gregShort(span.endPeriod?.last.gregorian ?? "")}
               </div>
+            </div>
+            <div className="mt-2">
+              <CourseResources course={course} />
             </div>
           </div>
         );

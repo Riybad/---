@@ -96,6 +96,11 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       `عدد ${info.plural}`,
       "من",
       "إلى",
+      "التسجيل الصوتي (للحفظ)",
+      "رابط التسجيل",
+      "الشرح",
+      "رابط الكتاب",
+      "رابط المرئيات",
     ],
   ];
   for (const p of picks) {
@@ -114,11 +119,16 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       span.count,
       span.startPeriod?.first.hijri ?? "—",
       span.endPeriod?.last.hijri ?? "—",
+      course.recitation_name || "—",
+      course.recitation_url || "",
+      course.sharh_name || "—",
+      course.sharh_book_url || "",
+      course.sharh_video_url || "",
     ]);
   }
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22]),
+    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22, 22, 40, 26, 40, 40]),
     "ملخص الخطة"
   );
   XLSX.utils.book_append_sheet(
@@ -200,7 +210,20 @@ export function allStudentsWorkbook(
   });
 
   const coursesSheet: (string | number)[][] = [
-    ["المقرر", "الفن", "الوحدة", "حجم الحفظ", "المسار الثاني", "حجمه", "الحالة"],
+    [
+      "المقرر",
+      "الفن",
+      "الوحدة",
+      "حجم الحفظ",
+      "المسار الثاني",
+      "حجمه",
+      "الحالة",
+      "التسجيل الصوتي (للحفظ)",
+      "رابط التسجيل",
+      "الشرح",
+      "رابط الكتاب",
+      "رابط المرئيات",
+    ],
   ];
   for (const c of courses) {
     coursesSheet.push([
@@ -211,6 +234,11 @@ export function allStudentsWorkbook(
       c.has_expl ? c.expl_label : "—",
       explTotal(c) || "—",
       c.active ? "مفعّل" : "موقوف",
+      c.recitation_name || "—",
+      c.recitation_url || "",
+      c.sharh_name || "—",
+      c.sharh_book_url || "",
+      c.sharh_video_url || "",
     ]);
   }
 
@@ -220,7 +248,11 @@ export function allStudentsWorkbook(
     sheet(detail, [24, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),
     "تفاصيل الخطط"
   );
-  XLSX.utils.book_append_sheet(wb, sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12]), "المقررات");
+  XLSX.utils.book_append_sheet(
+    wb,
+    sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12, 22, 40, 26, 40, 40]),
+    "المقررات"
+  );
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }

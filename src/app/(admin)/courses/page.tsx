@@ -2,6 +2,7 @@ import { saveCourse, toggleCourse } from "@/app/plan-actions";
 import { explTotal, memoTotal, UNITS, unitLabel } from "@/lib/plan";
 import { listCourses } from "@/lib/queries";
 import type { Course } from "@/lib/plan";
+import CourseResources from "@/components/CourseResources";
 
 export const dynamic = "force-dynamic";
 
@@ -53,6 +54,9 @@ function CourseRow({ course }: { course: Course }) {
             {course.active ? "إيقاف" : "تفعيل"}
           </button>
         </form>
+      </div>
+      <div className="mb-3">
+        <CourseResources course={course} />
       </div>
       <CourseForm course={course} />
     </div>
@@ -115,6 +119,63 @@ function CourseForm({ course }: { course?: Course }) {
             defaultValue={course ? explTotal(course) : 100}
             required
           />
+        </div>
+      </div>
+      <div className="sm:col-span-6 mt-1 grid gap-3 rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
+        <div className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
+          ما يدرس منه الطالب — يظهر له في صفحة الخطة وفي ملف الإكسل
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <div>
+            <label className="label">التسجيل الصوتي للمتن (للحفظ)</label>
+            <input
+              name="recitation_name"
+              className="input"
+              placeholder="قراءة فلان"
+              defaultValue={course?.recitation_name ?? ""}
+            />
+          </div>
+          <div>
+            <label className="label">رابط التسجيل</label>
+            <input
+              name="recitation_url"
+              className="input"
+              dir="ltr"
+              placeholder="https://"
+              defaultValue={course?.recitation_url ?? ""}
+            />
+          </div>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div>
+            <label className="label">الشرح (الشارح)</label>
+            <input
+              name="sharh_name"
+              className="input"
+              placeholder="شرح الشيخ فلان"
+              defaultValue={course?.sharh_name ?? ""}
+            />
+          </div>
+          <div>
+            <label className="label">رابط الكتاب</label>
+            <input
+              name="sharh_book_url"
+              className="input"
+              dir="ltr"
+              placeholder="https://"
+              defaultValue={course?.sharh_book_url ?? ""}
+            />
+          </div>
+          <div>
+            <label className="label">رابط المرئيات</label>
+            <input
+              name="sharh_video_url"
+              className="input"
+              dir="ltr"
+              placeholder="https://"
+              defaultValue={course?.sharh_video_url ?? ""}
+            />
+          </div>
         </div>
       </div>
       <div className="sm:col-span-6">

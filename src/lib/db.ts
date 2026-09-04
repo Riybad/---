@@ -69,6 +69,11 @@ const SCHEMA = `
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_label TEXT NOT NULL DEFAULT 'شرح';
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS memo_total INTEGER NOT NULL DEFAULT 0;
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_total INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS recitation_name TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS recitation_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_name TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_book_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_video_url TEXT NOT NULL DEFAULT '';
   CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -120,6 +125,7 @@ async function connect(): Promise<QueryClient> {
     if (stmt.trim()) await client.query(stmt);
   }
   await seedCourses(client);
+  await seedResources(client);
   return client;
 }
 
@@ -135,6 +141,48 @@ const DEFAULT_COURSES: [string, string, string, number, number, string][] = [
   ["القرآن سؤال وجواب", "علوم القرآن", "صفحة", 200, 200, "قراءة"],
   ["موسوعة التاريخ الإسلامي", "التاريخ", "صفحة", 30, 750, "قراءة"],
 ];
+
+/**
+ * الشروح والتسجيلات كما في ملف «تفصيل مقررات الخطة الأساسية»:
+ * [التسجيل الصوتي للمتن، رابطه، الشرح، رابط الكتاب، رابط المرئيات]
+ * تُملأ للمقرر الذي لم يُملأ له شيء بعد — فلا تطمس ما عدّله المشرف.
+ */
+const COURSE_RESOURCES: Record<string, [string, string, string, string, string]> = {
+  "سلم الوصول": [
+    "قراءة عمر الغبيوي",
+    "",
+    "شرح الشيخ عبدالرزاق البدر",
+    "https://www.noor-book.com/%D9%83%D8%AA%D8%A7%D8%A8-%D8%AA%D9%81%D8%B1%D9%8A%D8%BA-%D8%B4%D8%B1%D8%AD-%D9%85%D9%86%D8%B8%D9%88%D9%85%D9%87-%D8%B3%D9%84%D9%85-%D8%A7%D9%84%D9%88%D8%B5%D9%88%D9%84-%D8%B9%D8%A8%D8%AF%D8%A7%D9%84%D8%B1%D8%B2%D8%A7%D9%82-%D8%A7%D9%84%D8%A8%D8%AF%D8%B1-pdf",
+    "https://youtube.com/playlist?list=PLXuY2YL-v4n8Qhu4pSgUMdBzrdTKfLhbE&si=AxfgAdbC2LH2fcq1",
+  ],
+  "أخصر المختصرات": [
+    "د. أحمد حامد",
+    "https://youtube.com/playlist?list=PL2KOHInv_fdQSjsqmX65vqX5Wnd835x5r&si=p2Ru130ALLlFvsHB",
+    "شرح الشيخ عبدالسلام الشويعر",
+    "https://ia600506.us.archive.org/15/items/Sharh_Akhsar_Mokhtasarat_1437H/Sharh_Akhsar_Mokhtasarat.pdf",
+    "https://youtube.com/playlist?list=PLl9thoP_s9vWvtIPQ_h0eCGPmOLP3-N_O&si=9wRZ1IRkFqgz2dfk",
+  ],
+  "نظم الآجرومية": [
+    "قراءة عبدالعزيز الصيني",
+    "https://youtu.be/jmo3cef4ah8?si=TkBZMcwxDbW0i6DY",
+    "شرح الشيخ سليمان العيوني",
+    "https://archive.org/details/hjiggggg_gmail_20180729_1454",
+    "https://youtube.com/playlist?list=PL54tsaxKeZjP3ZXGyP3HpgPY3b4SqNrI_&si=mMszoNZwjnoj57rT",
+  ],
+};
+
+async function seedResources(client: QueryClient): Promise<void> {
+  for (const [name, [rName, rUrl, sName, sBook, sVideo]] of Object.entries(COURSE_RESOURCES)) {
+    await client.query(
+      `UPDATE courses
+         SET recitation_name = $2, recitation_url = $3,
+             sharh_name = $4, sharh_book_url = $5, sharh_video_url = $6
+       WHERE name = $1 AND recitation_name = '' AND sharh_name = ''
+         AND recitation_url = '' AND sharh_book_url = '' AND sharh_video_url = ''`,
+      [name, rName, rUrl, sName, sBook, sVideo]
+    );
+  }
+}
 
 async function seedCourses(client: QueryClient): Promise<void> {
   const rows = (await client.query("SELECT COUNT(*)::int AS n FROM courses")).rows;
