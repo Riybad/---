@@ -3,7 +3,8 @@ import { headers } from "next/headers";
 import CopyButton from "@/components/CopyButton";
 import { getRequestToken } from "@/lib/db";
 import { money, fmtDate, STATUS_LABEL, STATUS_STYLE } from "@/lib/format";
-import { getCustodyStats, getTotals, listCustodies, listTransactions } from "@/lib/queries";
+import { getCustodyStats, getTotals, listCustodies, listStudents, listTransactions } from "@/lib/queries";
+import { SESSIONS, YEAR_SESSIONS_LABEL } from "@/lib/calendar";
 
 export const dynamic = "force-dynamic";
 
@@ -47,11 +48,55 @@ export default async function DashboardPage() {
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
   const requestUrl = `${proto}://${host}/r/${await getRequestToken()}`;
+  const khittaUrl = `${proto}://${host}/khitta`;
+  const students = await listStudents();
 
   const net = totals.revenue - totals.expense;
 
   return (
     <main className="space-y-6">
+      <section className="card p-5">
+        <div className="flex flex-wrap items-center gap-3">
+          <div>
+            <h2 className="page-title text-lg">خطط الطلاب — حفظ وشرح</h2>
+            <p className="text-sm" style={{ color: "var(--text-muted)" }}>
+              {YEAR_SESSIONS_LABEL} — من {SESSIONS[0]?.hijri} إلى{" "}
+              {SESSIONS[SESSIONS.length - 1]?.hijri}
+            </p>
+          </div>
+          <div className="ms-auto flex flex-wrap gap-2">
+            <Link href="/students" className="btn btn-primary text-sm">
+              الطلاب ({students.length})
+            </Link>
+            <Link href="/courses" className="btn btn-ghost text-sm">
+              المقررات
+            </Link>
+            <Link href="/taqweem" className="btn btn-ghost text-sm">
+              الخطة الزمنية
+            </Link>
+          </div>
+        </div>
+        <div
+          className="mt-4 flex flex-wrap items-center gap-3 rounded-xl p-3"
+          style={{ background: "var(--surface-stripe)" }}
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-semibold" style={{ color: "var(--text-muted)" }}>
+              رابط تسجيل الخطة (أرسله للطلاب)
+            </p>
+            <p className="break-all text-xs num" style={{ color: "var(--text-secondary)" }}>
+              {khittaUrl}
+            </p>
+          </div>
+          <div className="ms-auto flex gap-2">
+            <CopyButton text={khittaUrl} />
+            <a className="btn btn-ghost text-sm" href="/api/export/khitta">
+              تصدير كل الخطط إكسل
+            </a>
+          </div>
+        </div>
+      </section>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatTile label="مجموع الإيرادات" value={money(totals.revenue)} tone="good" />
         <StatTile label="مجموع المصروفات" value={money(totals.expense)} tone="critical" />

@@ -52,7 +52,45 @@ const SCHEMA = `
     file_path TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS courses (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    unit TEXT NOT NULL DEFAULT 'صفحة',
+    memo_total INTEGER NOT NULL DEFAULT 0,
+    expl_total INTEGER NOT NULL DEFAULT 0,
+    expl_label TEXT NOT NULL DEFAULT 'شرح',
+    has_memo BOOLEAN NOT NULL DEFAULT TRUE,
+    has_expl BOOLEAN NOT NULL DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    active BOOLEAN NOT NULL DEFAULT TRUE
+  );
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_label TEXT NOT NULL DEFAULT 'شرح';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS memo_total INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_total INTEGER NOT NULL DEFAULT 0;
+  CREATE TABLE IF NOT EXISTS students (
+    id SERIAL PRIMARY KEY,
+    name TEXT NOT NULL,
+    phone TEXT NOT NULL DEFAULT '',
+    stage TEXT NOT NULL DEFAULT '',
+    notes TEXT NOT NULL DEFAULT '',
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE TABLE IF NOT EXISTS plan_items (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    course_id INTEGER NOT NULL REFERENCES courses(id) ON DELETE CASCADE,
+    ord INTEGER NOT NULL DEFAULT 0,
+    memo_per INTEGER NOT NULL DEFAULT 0,
+    expl_per INTEGER NOT NULL DEFAULT 0,
+    start_session INTEGER NOT NULL DEFAULT 0
+  );
+  CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
 `;
+
 
 declare global {
   // eslint-disable-next-line no-var
@@ -79,7 +117,35 @@ async function connect(): Promise<QueryClient> {
   for (const stmt of SCHEMA.split(";")) {
     if (stmt.trim()) await client.query(stmt);
   }
+  await seedCourses(client);
   return client;
+}
+
+/**
+ * المقررات الخمسة كما في ملف «تفصيل مقررات الخطة الأساسية».
+ * [الاسم، الفن، الوحدة، حجم الحفظ، حجم المسار الثاني، مسمّى المسار الثاني]
+ * حجم الحفظ صفر يعني أن المقرر بلا حفظ، والعكس بالعكس.
+ */
+const DEFAULT_COURSES: [string, string, string, number, number, string][] = [
+  ["سلم الوصول", "العقيدة", "بيت", 290, 290, "شرح"],
+  ["أخصر المختصرات", "الفقه", "صفحة", 299, 299, "شرح"],
+  ["نظم الآجرومية", "اللغة", "بيت", 154, 154, "شرح"],
+  ["القرآن سؤال وجواب", "علوم القرآن", "صفحة", 200, 200, "قراءة"],
+  ["موسوعة التاريخ الإسلامي", "التاريخ", "صفحة", 30, 750, "قراءة"],
+];
+
+async function seedCourses(client: QueryClient): Promise<void> {
+  const rows = (await client.query("SELECT COUNT(*)::int AS n FROM courses")).rows;
+  if (Number(rows[0]?.n ?? 0) > 0) return;
+  for (let i = 0; i < DEFAULT_COURSES.length; i++) {
+    const [name, subject, unit, memoTotal, explTotal, explLabel] = DEFAULT_COURSES[i];
+    await client.query(
+      `INSERT INTO courses
+         (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [name, subject, unit, memoTotal, explTotal, explLabel, memoTotal > 0, explTotal > 0, i]
+    );
+  }
 }
 
 export async function q(text: string, params: unknown[] = []): Promise<Row[]> {
@@ -154,4 +220,30 @@ export type Invoice = {
 
 export function newCloseToken(): string {
   return crypto.randomBytes(12).toString("hex");
+}
+
+export type Student = {
+  id: number;
+  name: string;
+  phone: string;
+  stage: string;
+  notes: string;
+  token: string;
+  created_at: Date;
+  updated_at: Date;
+};
+
+export type PlanItem = {
+  id: number;
+  student_id: number;
+  course_id: number;
+  ord: number;
+  memo_per: number;
+  expl_per: number;
+  start_session: number;
+};
+
+/** رمز الرابط الخاص بخطة الطالب */
+export function newPlanToken(): string {
+  return crypto.randomBytes(9).toString("hex");
 }

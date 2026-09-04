@@ -22,7 +22,7 @@ export default async function RequestPage({
     <main className="sunny sunny-bg flex min-h-screen items-center justify-center p-4">
       <div className="card sunny-card w-full max-w-lg p-8">
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt="شعار طُود" className="mx-auto mb-4 h-20 w-auto" />
+        <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-4 h-20 w-auto" />
         {done === "close" ? (
           <div className="text-center">
             <p className="text-4xl">✅</p>
