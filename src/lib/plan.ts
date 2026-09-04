@@ -4,13 +4,28 @@ import type { CalDay } from "./calendar";
 export type Course = {
   id: number;
   name: string;
+  /** الفن: العقيدة، الفقه، اللغة… */
+  subject: string;
   unit: string;
-  total: number;
+  /** حجم مسار الحفظ ومسار الشرح/القراءة — قد يختلفان (التاريخ: حفظ 30، قراءة 750) */
+  memo_total: number;
+  expl_total: number;
+  /** مسمّى المسار الثاني: «شرح» أو «قراءة» */
+  expl_label: string;
   has_memo: boolean;
   has_expl: boolean;
   sort_order: number;
   active: boolean;
 };
+
+/** حجم المسار الذي يعمل عليه الطالب */
+export function memoTotal(c: Course): number {
+  return c.has_memo ? Math.max(0, c.memo_total) : 0;
+}
+
+export function explTotal(c: Course): number {
+  return c.has_expl ? Math.max(0, c.expl_total) : 0;
+}
 
 /** اختيار الطالب لمقرر واحد: كم يأخذ في اللقاء، ومن أي لقاء يبدأ */
 export type Pick = {
@@ -33,14 +48,17 @@ const PLURALS: Record<string, string> = {
   فصل: "فصول",
 };
 
-/** صياغة عربية سليمة للعدد مع وحدته: بيت / بيتان / 5 أبيات / 15 بيتًا */
+/**
+ * صياغة عربية سليمة للعدد مع وحدته:
+ * بيت / بيتان / 5 أبيات / 15 بيتًا — وللمؤنث: صفحة / صفحتان / 5 صفحات / 15 صفحةً
+ */
 export function unitLabel(n: number, unit: string): string {
   if (n <= 0) return "—";
-  const plural = PLURALS[unit] ?? unit;
+  const feminine = unit.endsWith("ة");
   if (n === 1) return unit;
-  if (n === 2) return `${unit}ان`;
-  if (n <= 10) return `${n} ${plural}`;
-  return `${n} ${unit}ًا`;
+  if (n === 2) return feminine ? `${unit.slice(0, -1)}تان` : `${unit}ان`;
+  if (n <= 10) return `${n} ${PLURALS[unit] ?? unit}`;
+  return `${n} ${unit}${feminine ? "ً" : "ًا"}`;
 }
 
 /** صياغة عدد اللقاءات: لقاء / لقاءان / 5 لقاءات / 15 لقاءً */
@@ -54,9 +72,8 @@ export function sessionsLabel(n: number): string {
 
 /** عدد اللقاءات التي يستهلكها المقرر بهذا المعدل */
 export function sessionsNeeded(course: Course, memoPer: number, explPer: number): number {
-  const total = Math.max(0, course.total);
-  const a = memoPer > 0 ? Math.ceil(total / memoPer) : 0;
-  const b = explPer > 0 ? Math.ceil(total / explPer) : 0;
+  const a = memoPer > 0 ? Math.ceil(memoTotal(course) / memoPer) : 0;
+  const b = explPer > 0 ? Math.ceil(explTotal(course) / explPer) : 0;
   return Math.max(a, b);
 }
 
@@ -126,8 +143,8 @@ export function buildSchedule(courses: Course[], picks: Pick[]): ScheduleRow[] {
     for (let k = 0; k < sessions; k++) {
       const idx = p.start + k;
       if (idx >= rows.length) break;
-      const [memoFrom, memoTo] = range(course.total, pick.memoPer, k + 1);
-      const [explFrom, explTo] = range(course.total, pick.explPer, k + 1);
+      const [memoFrom, memoTo] = range(memoTotal(course), pick.memoPer, k + 1);
+      const [explFrom, explTo] = range(explTotal(course), pick.explPer, k + 1);
       if (!memoTo && !explTo) continue;
       rows[idx].portions.push({ course, nth: k + 1, memoFrom, memoTo, explFrom, explTo });
     }

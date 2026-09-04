@@ -5,10 +5,12 @@ import { savePlan } from "@/app/plan-actions";
 import { SESSIONS, gregShort } from "@/lib/calendar";
 import {
   buildSchedule,
+  explTotal,
+  memoTotal,
   portionText,
+  sessionsLabel,
   sessionsNeeded,
   spanOf,
-  sessionsLabel,
   suggestRate,
   unitLabel,
   YEAR_SESSIONS,
@@ -56,7 +58,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   const done = picks.length;
   const current = courses.find((c) => c.id === currentId) ?? null;
 
-  /** أول لقاء فاضٍ بعد آخر مقرر تم تقسيمه — لترتيب المقررات واحدًا تلو الآخر */
+  /** أول لقاء فاضٍ بعد آخر مقرر مقسّم — لمن أراد ترتيب مقرراته واحدًا تلو الآخر */
   const nextFreeSession = useMemo(() => {
     let end = 0;
     for (const p of picks) {
@@ -70,15 +72,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   function openCourse(course: Course) {
     setCurrentId(course.id);
     if (!draft[course.id]) {
-      // بداية معقولة: يوزّع المقرر على ما تبقّى من لقاءات السنة
-      const start = nextFreeSession;
-      const rate = suggestRate(course.total, YEAR_SESSIONS - start);
+      // المقررات تُدرس بالتوازي على مدار السنة، فالبداية من أول لقاء
+      // وكل مسار يوزَّع على السنة كاملة بحجمه هو
       setDraft((d) => ({
         ...d,
         [course.id]: {
-          memoPer: course.has_memo ? rate : 0,
-          explPer: course.has_expl ? rate : 0,
-          start,
+          memoPer: course.has_memo ? suggestRate(memoTotal(course), YEAR_SESSIONS) : 0,
+          explPer: course.has_expl ? suggestRate(explTotal(course), YEAR_SESSIONS) : 0,
+          start: 0,
         },
       }));
     }
@@ -186,11 +187,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                     {d && <span className="ms-auto text-xs font-bold">✓ مقسّم</span>}
                   </div>
                   <div className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-                    {unitLabel(c.total, c.unit)} · {c.has_memo && c.has_expl
-                      ? "حفظ وشرح"
-                      : c.has_memo
-                        ? "حفظ"
-                        : "شرح"}
+                    {c.subject && <span>{c.subject} · </span>}
+                    {trackSummary(c)}
                   </div>
                   {span?.endDay && (
                     <div className="mt-2 text-xs font-semibold" style={{ color: colorOf(c.id) }}>
@@ -223,6 +221,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
           course={current}
           value={draft[current.id]}
           color={colorOf(current.id)}
+          afterPrevious={nextFreeSession}
           onChange={(v) => setDraft((d) => ({ ...d, [current.id]: v }))}
           onRemove={() => {
             removeCourse(current.id);
@@ -281,7 +280,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                   <th>الميلادي</th>
                   <th>المقرر</th>
                   <th>الحفظ</th>
-                  <th>الشرح</th>
+                  <th>الشرح / القراءة</th>
                 </tr>
               </thead>
               <tbody>
@@ -326,6 +325,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       )}
     </div>
   );
+}
+
+/** وصف مختصر لمساري المقرر وحجميهما */
+function trackSummary(c: Course): string {
+  const parts: string[] = [];
+  if (c.has_memo) parts.push(`حفظ ${unitLabel(memoTotal(c), c.unit)}`);
+  if (c.has_expl) parts.push(`${c.expl_label} ${unitLabel(explTotal(c), c.unit)}`);
+  return parts.join(" · ");
 }
 
 function Fact({ label, value }: { label: string; value: string }) {
@@ -414,6 +421,7 @@ function SplitCourse({
   course,
   value,
   color,
+  afterPrevious,
   onChange,
   onRemove,
   onDone,
@@ -421,6 +429,8 @@ function SplitCourse({
   course: Course;
   value: { memoPer: number; explPer: number; start: number };
   color: string;
+  /** أول لقاء بعد المقررات المقسّمة — لزر «يبدأ بعد المقرر السابق» */
+  afterPrevious: number;
   onChange: (v: { memoPer: number; explPer: number; start: number }) => void;
   onRemove: () => void;
   onDone: () => void;
@@ -436,10 +446,9 @@ function SplitCourse({
   ];
 
   function applyPreset(sessions: number) {
-    const rate = suggestRate(course.total, sessions);
     set({
-      memoPer: course.has_memo ? rate : 0,
-      explPer: course.has_expl ? rate : 0,
+      memoPer: course.has_memo ? suggestRate(memoTotal(course), sessions) : 0,
+      explPer: course.has_expl ? suggestRate(explTotal(course), sessions) : 0,
     });
   }
 
@@ -450,7 +459,8 @@ function SplitCourse({
         <div>
           <h2 className="text-lg font-bold">{course.name}</h2>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            كامل المقرر: {unitLabel(course.total, course.unit)} — كم تأخذ منه في اللقاء الواحد؟
+            {course.subject && <span>{course.subject} · </span>}
+            {trackSummary(course)} — كم تأخذ في اللقاء الواحد؟
           </p>
         </div>
       </div>
@@ -470,9 +480,9 @@ function SplitCourse({
 
       {course.has_memo && (
         <Stepper2
-          label="الحفظ في كل لقاء"
+          label={`الحفظ في كل لقاء — من ${unitLabel(memoTotal(course), course.unit)}`}
           unit={course.unit}
-          max={course.total}
+          max={memoTotal(course)}
           value={value.memoPer}
           color={color}
           onChange={(memoPer) => set({ memoPer })}
@@ -480,9 +490,9 @@ function SplitCourse({
       )}
       {course.has_expl && (
         <Stepper2
-          label="الشرح في كل لقاء"
+          label={`ال${course.expl_label} في كل لقاء — من ${unitLabel(explTotal(course), course.unit)}`}
           unit={course.unit}
-          max={course.total}
+          max={explTotal(course)}
           value={value.explPer}
           color={color}
           onChange={(explPer) => set({ explPer })}
@@ -490,7 +500,22 @@ function SplitCourse({
       )}
 
       <div>
-        <label className="label">يبدأ من اللقاء</label>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <label className="label">يبدأ من اللقاء</label>
+          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+            (المقررات تسير بالتوازي — أخّره فقط إن أردت دراسته لاحقًا)
+          </span>
+          {afterPrevious > 0 && value.start !== afterPrevious && (
+            <button
+              type="button"
+              className="ms-auto text-xs font-bold underline"
+              style={{ color }}
+              onClick={() => set({ start: afterPrevious })}
+            >
+              ابدأه بعد المقررات السابقة
+            </button>
+          )}
+        </div>
         <select
           className="input"
           value={value.start}
@@ -509,7 +534,9 @@ function SplitCourse({
         style={{ background: `${color}14`, border: `1px solid ${color}44` }}
       >
         {span.sessions === 0 ? (
-          <span style={{ color: "var(--critical)" }}>حدّد مقدارًا للحفظ أو للشرح.</span>
+          <span style={{ color: "var(--critical)" }}>
+            حدّد مقدارًا للحفظ أو لل{course.expl_label}.
+          </span>
         ) : span.overflow ? (
           <span style={{ color: "var(--critical)" }}>
             بهذا المعدل يحتاج المقرر {sessionsLabel(span.sessions)}، وهذا يتجاوز آخر لقاء في

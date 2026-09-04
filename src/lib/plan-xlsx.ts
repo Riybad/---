@@ -1,6 +1,14 @@
 import * as XLSX from "xlsx";
 import { CALENDAR, EVENT_LABEL, SESSIONS } from "./calendar";
-import { buildSchedule, portionText, spanOf, type Course, type Pick } from "./plan";
+import {
+  buildSchedule,
+  explTotal,
+  memoTotal,
+  portionText,
+  spanOf,
+  type Course,
+  type Pick,
+} from "./plan";
 import type { Student } from "./db";
 
 type Sheet = XLSX.WorkSheet;
@@ -25,7 +33,17 @@ function calendarSheet(): Sheet {
 /** ورقة خطة طالب واحد: صف لكل لقاء ومقرر */
 function planRows(courses: Course[], picks: Pick[]): (string | number)[][] {
   const rows: (string | number)[][] = [
-    ["اللقاء", "التاريخ الهجري", "اليوم", "التاريخ الميلادي", "المقرر", "الحفظ", "الشرح", "الوحدة"],
+    [
+      "اللقاء",
+      "التاريخ الهجري",
+      "اليوم",
+      "التاريخ الميلادي",
+      "المقرر",
+      "الحفظ",
+      "الشرح / القراءة",
+      "المسار الثاني",
+      "الوحدة",
+    ],
   ];
   for (const r of buildSchedule(courses, picks)) {
     for (const p of r.portions) {
@@ -37,6 +55,7 @@ function planRows(courses: Course[], picks: Pick[]): (string | number)[][] {
         p.course.name,
         portionText(p.memoFrom, p.memoTo),
         portionText(p.explFrom, p.explTo),
+        p.course.expl_label,
         p.course.unit,
       ]);
     }
@@ -44,7 +63,7 @@ function planRows(courses: Course[], picks: Pick[]): (string | number)[][] {
   return rows;
 }
 
-const PLAN_WIDTHS = [8, 22, 12, 14, 26, 14, 14, 10];
+const PLAN_WIDTHS = [8, 22, 12, 14, 26, 14, 16, 14, 10];
 
 /** ملف خطة طالب واحد */
 export function studentWorkbook(student: Student, courses: Course[], picks: Pick[]): Buffer {
@@ -58,7 +77,19 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     ["ملاحظات", student.notes || "—"],
     ["عدد لقاءات السنة", SESSIONS.length],
     [],
-    ["المقرر", "الوحدة", "حجم المقرر", "حفظ/لقاء", "شرح/لقاء", "عدد اللقاءات", "من", "إلى"],
+    [
+      "المقرر",
+      "الفن",
+      "الوحدة",
+      "حجم الحفظ",
+      "حفظ/لقاء",
+      "المسار الثاني",
+      "حجمه",
+      "المقدار/لقاء",
+      "عدد اللقاءات",
+      "من",
+      "إلى",
+    ],
   ];
   for (const p of picks) {
     const course = courses.find((c) => c.id === p.courseId);
@@ -66,16 +97,23 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     const span = spanOf(course, p);
     head.push([
       course.name,
+      course.subject,
       course.unit,
-      course.total,
+      memoTotal(course) || "—",
       p.memoPer || "—",
+      course.has_expl ? course.expl_label : "—",
+      explTotal(course) || "—",
       p.explPer || "—",
       span.sessions,
       span.startDay?.hijri ?? "—",
       span.endDay?.hijri ?? "—",
     ]);
   }
-  XLSX.utils.book_append_sheet(wb, sheet(head, [24, 12, 12, 12, 12, 14, 22, 22]), "ملخص الخطة");
+  XLSX.utils.book_append_sheet(
+    wb,
+    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22]),
+    "ملخص الخطة"
+  );
   XLSX.utils.book_append_sheet(wb, sheet(planRows(courses, picks), PLAN_WIDTHS), "جدول اللقاءات");
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
@@ -93,7 +131,18 @@ export function allStudentsWorkbook(
     ["م", "الطالب", "الجوال", "المرحلة", "عدد المقررات", "اللقاءات المشغولة", "تاريخ التسجيل", "ملاحظات"],
   ];
   const detail: (string | number)[][] = [
-    ["الطالب", "اللقاء", "التاريخ الهجري", "اليوم", "التاريخ الميلادي", "المقرر", "الحفظ", "الشرح", "الوحدة"],
+    [
+      "الطالب",
+      "اللقاء",
+      "التاريخ الهجري",
+      "اليوم",
+      "التاريخ الميلادي",
+      "المقرر",
+      "الحفظ",
+      "الشرح / القراءة",
+      "المسار الثاني",
+      "الوحدة",
+    ],
   ];
 
   entries.forEach(({ student, picks }, i) => {
@@ -119,26 +168,35 @@ export function allStudentsWorkbook(
           p.course.name,
           portionText(p.memoFrom, p.memoTo),
           portionText(p.explFrom, p.explTo),
+          p.course.expl_label,
           p.course.unit,
         ]);
       }
     }
   });
 
-  const coursesSheet: (string | number)[][] = [["المقرر", "الوحدة", "حجم المقرر", "النوع", "الحالة"]];
+  const coursesSheet: (string | number)[][] = [
+    ["المقرر", "الفن", "الوحدة", "حجم الحفظ", "المسار الثاني", "حجمه", "الحالة"],
+  ];
   for (const c of courses) {
     coursesSheet.push([
       c.name,
+      c.subject,
       c.unit,
-      c.total,
-      c.has_memo && c.has_expl ? "حفظ وشرح" : c.has_memo ? "حفظ" : "شرح",
+      memoTotal(c) || "—",
+      c.has_expl ? c.expl_label : "—",
+      explTotal(c) || "—",
       c.active ? "مفعّل" : "موقوف",
     ]);
   }
 
   XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 14, 14, 12, 16, 14, 30]), "الطلاب");
-  XLSX.utils.book_append_sheet(wb, sheet(detail, [24, 8, 22, 12, 14, 26, 14, 14, 10]), "تفاصيل الخطط");
-  XLSX.utils.book_append_sheet(wb, sheet(coursesSheet, [26, 12, 12, 14, 12]), "المقررات");
+  XLSX.utils.book_append_sheet(
+    wb,
+    sheet(detail, [24, 8, 22, 12, 14, 26, 14, 16, 14, 10]),
+    "تفاصيل الخطط"
+  );
+  XLSX.utils.book_append_sheet(wb, sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12]), "المقررات");
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");
   return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
 }

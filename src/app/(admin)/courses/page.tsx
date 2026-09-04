@@ -1,5 +1,5 @@
 import { saveCourse, toggleCourse } from "@/app/plan-actions";
-import { UNITS, unitLabel } from "@/lib/plan";
+import { explTotal, memoTotal, UNITS, unitLabel } from "@/lib/plan";
 import { listCourses } from "@/lib/queries";
 import type { Course } from "@/lib/plan";
 
@@ -12,7 +12,9 @@ export default async function CoursesPage() {
       <div>
         <h1 className="page-title text-xl">المقررات</h1>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          حجم المقرر ووحدته هما أساس التقسيم عند الطالب — عدّلها هنا وتنعكس على التسجيل الجديد.
+          لكل مقرر مساران بحجمين مستقلين: <strong>الحفظ</strong> و<strong>الشرح أو القراءة</strong>
+          {" "}— مثل التاريخ: حفظ 30 صفحة وقراءة 750. اجعل الحجم <strong>صفرًا</strong> لإلغاء
+          المسار. هذه الأحجام هي أساس التقسيم عند الطالب.
         </p>
       </div>
 
@@ -36,8 +38,13 @@ function CourseRow({ course }: { course: Course }) {
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="font-bold">{course.name}</span>
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          {unitLabel(course.total, course.unit)} ·{" "}
-          {course.has_memo && course.has_expl ? "حفظ وشرح" : course.has_memo ? "حفظ" : "شرح"}
+          {course.subject && <>{course.subject} · </>}
+          {[
+            course.has_memo && `حفظ ${unitLabel(memoTotal(course), course.unit)}`,
+            course.has_expl && `${course.expl_label} ${unitLabel(explTotal(course), course.unit)}`,
+          ]
+            .filter(Boolean)
+            .join(" · ")}
         </span>
         {!course.active && <span className="badge badge-warning">موقوف</span>}
         <form action={toggleCourse} className="ms-auto">
@@ -54,11 +61,20 @@ function CourseRow({ course }: { course: Course }) {
 
 function CourseForm({ course }: { course?: Course }) {
   return (
-    <form action={saveCourse} className="grid gap-3 sm:grid-cols-5 sm:items-end">
+    <form action={saveCourse} className="grid gap-3 sm:grid-cols-6 sm:items-end">
       {course && <input type="hidden" name="id" value={course.id} />}
       <div className="sm:col-span-2">
         <label className="label">اسم المقرر</label>
         <input name="name" className="input" defaultValue={course?.name ?? ""} required />
+      </div>
+      <div>
+        <label className="label">الفن</label>
+        <input
+          name="subject"
+          className="input"
+          placeholder="الفقه، اللغة…"
+          defaultValue={course?.subject ?? ""}
+        />
       </div>
       <div>
         <label className="label">الوحدة</label>
@@ -71,27 +87,37 @@ function CourseForm({ course }: { course?: Course }) {
         </select>
       </div>
       <div>
-        <label className="label">حجم المقرر</label>
+        <label className="label">حجم الحفظ</label>
         <input
-          name="total"
+          name="memo_total"
           type="number"
-          min={1}
+          min={0}
           className="input num"
-          defaultValue={course?.total ?? 100}
+          defaultValue={course ? memoTotal(course) : 100}
           required
         />
       </div>
-      <div className="flex items-center gap-3">
-        <label className="flex items-center gap-1.5 text-sm font-semibold">
-          <input type="checkbox" name="has_memo" defaultChecked={course?.has_memo ?? true} />
-          حفظ
-        </label>
-        <label className="flex items-center gap-1.5 text-sm font-semibold">
-          <input type="checkbox" name="has_expl" defaultChecked={course?.has_expl ?? true} />
-          شرح
-        </label>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="label">المسار الثاني</label>
+          <select name="expl_label" className="input" defaultValue={course?.expl_label ?? "شرح"}>
+            <option value="شرح">شرح</option>
+            <option value="قراءة">قراءة</option>
+          </select>
+        </div>
+        <div>
+          <label className="label">حجمه</label>
+          <input
+            name="expl_total"
+            type="number"
+            min={0}
+            className="input num"
+            defaultValue={course ? explTotal(course) : 100}
+            required
+          />
+        </div>
       </div>
-      <div className="sm:col-span-5">
+      <div className="sm:col-span-6">
         <button className="btn btn-primary text-sm">{course ? "حفظ التعديل" : "أضف المقرر"}</button>
       </div>
     </form>

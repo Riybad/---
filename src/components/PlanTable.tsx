@@ -1,6 +1,8 @@
 import { gregShort } from "@/lib/calendar";
 import {
   buildSchedule,
+  explTotal,
+  memoTotal,
   portionText,
   sessionsLabel,
   spanOf,
@@ -33,13 +35,28 @@ export function CourseSummary({ courses, picks }: { courses: Course[]; picks: Pi
             <div className="flex items-center gap-2">
               <span className="h-3 w-3 rounded-full" style={{ background: color }} />
               <span className="font-bold">{course.name}</span>
+              {course.subject && (
+                <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+                  {course.subject}
+                </span>
+              )}
               <span className="ms-auto text-xs num" style={{ color: "var(--text-muted)" }}>
                 {sessionsLabel(span.sessions)}
               </span>
             </div>
             <div className="mt-2 grid gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
-              {p.memoPer > 0 && <div>حفظ: {unitLabel(p.memoPer, course.unit)} في اللقاء</div>}
-              {p.explPer > 0 && <div>شرح: {unitLabel(p.explPer, course.unit)} في اللقاء</div>}
+              {p.memoPer > 0 && (
+                <div>
+                  حفظ: {unitLabel(p.memoPer, course.unit)} في اللقاء — من{" "}
+                  {unitLabel(memoTotal(course), course.unit)}
+                </div>
+              )}
+              {p.explPer > 0 && (
+                <div>
+                  {course.expl_label}: {unitLabel(p.explPer, course.unit)} في اللقاء — من{" "}
+                  {unitLabel(explTotal(course), course.unit)}
+                </div>
+              )}
               <div>
                 من {span.startDay?.hijri} إلى {span.endDay?.hijri}
               </div>
@@ -75,7 +92,7 @@ export default function PlanTable({ courses, picks }: { courses: Course[]; picks
             <th>اليوم</th>
             <th>المقرر</th>
             <th>الحفظ</th>
-            <th>الشرح</th>
+            <th>الشرح / القراءة</th>
           </tr>
         </thead>
         <tbody>

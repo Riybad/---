@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { newPlanToken, q } from "@/lib/db";
 import { listCourses } from "@/lib/queries";
-import { sessionsNeeded, UNITS, YEAR_SESSIONS } from "@/lib/plan";
+import { explTotal, memoTotal, sessionsNeeded, UNITS, YEAR_SESSIONS } from "@/lib/plan";
 
 /* ————— خطة الطالب (من الرابط العام) ————— */
 
@@ -62,9 +62,14 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
     if (seen.has(p.courseId)) return `المقرر «${course.name}» مكرر في الخطة`;
     seen.add(p.courseId);
     if (!course.has_memo && p.memoPer > 0) return `المقرر «${course.name}» ليس فيه حفظ`;
-    if (!course.has_expl && p.explPer > 0) return `المقرر «${course.name}» ليس فيه شرح`;
-    if (p.memoPer > course.total || p.explPer > course.total) {
-      return `المقدار في «${course.name}» أكبر من حجم المقرر كاملًا`;
+    if (!course.has_expl && p.explPer > 0) {
+      return `المقرر «${course.name}» ليس فيه ${course.expl_label}`;
+    }
+    if (p.memoPer > memoTotal(course)) {
+      return `مقدار الحفظ في «${course.name}» أكبر من المقرر كاملًا`;
+    }
+    if (p.explPer > explTotal(course)) {
+      return `مقدار ال${course.expl_label} في «${course.name}» أكبر من المقرر كاملًا`;
     }
     const needed = sessionsNeeded(course, p.memoPer, p.explPer);
     if (p.start + needed > YEAR_SESSIONS) {
@@ -95,34 +100,46 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
 
 /* ————— إدارة المقررات (اللوحة) ————— */
 
+const EXPL_LABELS = ["شرح", "قراءة"];
+
 export async function saveCourse(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = Number(formData.get("id") ?? 0);
   const name = String(formData.get("name") ?? "").trim();
   if (!name) return;
+
+  const size = (key: string) => Math.max(0, Math.trunc(Number(formData.get(key) ?? 0)) || 0);
   const unit = String(formData.get("unit") ?? "صفحة");
-  const total = Math.max(1, Math.trunc(Number(formData.get("total") ?? 1)) || 1);
-  const hasMemo = formData.get("has_memo") === "on";
-  const hasExpl = formData.get("has_expl") === "on";
+  const explLabel = String(formData.get("expl_label") ?? "شرح");
+  const memoTotalValue = size("memo_total");
+  const explTotalValue = size("expl_total");
+  // حجم صفر يعني «بلا هذا المسار»، ولا بد أن يبقى مسار واحد على الأقل
+  if (memoTotalValue === 0 && explTotalValue === 0) return;
+
   const params = [
     name,
+    String(formData.get("subject") ?? "").trim(),
     UNITS.includes(unit) ? unit : "صفحة",
-    total,
-    hasMemo || !hasExpl,
-    hasExpl || !hasMemo,
+    memoTotalValue,
+    explTotalValue,
+    EXPL_LABELS.includes(explLabel) ? explLabel : "شرح",
+    memoTotalValue > 0,
+    explTotalValue > 0,
   ];
 
   if (id > 0) {
     await q(
-      `UPDATE courses SET name = $1, unit = $2, total = $3, has_memo = $4, has_expl = $5
-       WHERE id = $6`,
+      `UPDATE courses SET name = $1, subject = $2, unit = $3, memo_total = $4, expl_total = $5,
+         expl_label = $6, has_memo = $7, has_expl = $8
+       WHERE id = $9`,
       [...params, id]
     );
   } else {
     const max = (await q("SELECT COALESCE(MAX(sort_order), -1)::int AS m FROM courses"))[0];
     await q(
-      `INSERT INTO courses (name, unit, total, has_memo, has_expl, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
+      `INSERT INTO courses
+         (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
       [...params, Number(max?.m ?? -1) + 1]
     );
   }

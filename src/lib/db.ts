@@ -55,13 +55,20 @@ const SCHEMA = `
   CREATE TABLE IF NOT EXISTS courses (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
     unit TEXT NOT NULL DEFAULT 'صفحة',
-    total INTEGER NOT NULL DEFAULT 0,
+    memo_total INTEGER NOT NULL DEFAULT 0,
+    expl_total INTEGER NOT NULL DEFAULT 0,
+    expl_label TEXT NOT NULL DEFAULT 'شرح',
     has_memo BOOLEAN NOT NULL DEFAULT TRUE,
     has_expl BOOLEAN NOT NULL DEFAULT TRUE,
     sort_order INTEGER NOT NULL DEFAULT 0,
     active BOOLEAN NOT NULL DEFAULT TRUE
   );
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS subject TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_label TEXT NOT NULL DEFAULT 'شرح';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS memo_total INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS expl_total INTEGER NOT NULL DEFAULT 0;
   CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -114,24 +121,29 @@ async function connect(): Promise<QueryClient> {
   return client;
 }
 
-/** المقررات الافتراضية — تُزرع مرة واحدة فقط، وتبقى قابلة للتعديل من اللوحة */
-const DEFAULT_COURSES: [string, string, number, boolean, boolean][] = [
-  ["أخصر المختصرات", "باب", 60, true, true],
-  ["سلم الوصول", "بيت", 220, true, true],
-  ["القرآن سؤال وجواب", "سؤال", 200, false, true],
-  ["موسوعة التاريخ الإسلامي", "فصل", 40, false, true],
-  ["الآجرومية", "باب", 32, true, true],
+/**
+ * المقررات الخمسة كما في ملف «تفصيل مقررات الخطة الأساسية».
+ * [الاسم، الفن، الوحدة، حجم الحفظ، حجم المسار الثاني، مسمّى المسار الثاني]
+ * حجم الحفظ صفر يعني أن المقرر بلا حفظ، والعكس بالعكس.
+ */
+const DEFAULT_COURSES: [string, string, string, number, number, string][] = [
+  ["سلم الوصول", "العقيدة", "بيت", 290, 290, "شرح"],
+  ["أخصر المختصرات", "الفقه", "صفحة", 299, 299, "شرح"],
+  ["نظم الآجرومية", "اللغة", "بيت", 154, 154, "شرح"],
+  ["القرآن سؤال وجواب", "علوم القرآن", "صفحة", 200, 200, "قراءة"],
+  ["موسوعة التاريخ الإسلامي", "التاريخ", "صفحة", 30, 750, "قراءة"],
 ];
 
 async function seedCourses(client: QueryClient): Promise<void> {
   const rows = (await client.query("SELECT COUNT(*)::int AS n FROM courses")).rows;
   if (Number(rows[0]?.n ?? 0) > 0) return;
   for (let i = 0; i < DEFAULT_COURSES.length; i++) {
-    const [name, unit, total, hasMemo, hasExpl] = DEFAULT_COURSES[i];
+    const [name, subject, unit, memoTotal, explTotal, explLabel] = DEFAULT_COURSES[i];
     await client.query(
-      `INSERT INTO courses (name, unit, total, has_memo, has_expl, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [name, unit, total, hasMemo, hasExpl, i]
+      `INSERT INTO courses
+         (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [name, subject, unit, memoTotal, explTotal, explLabel, memoTotal > 0, explTotal > 0, i]
     );
   }
 }
