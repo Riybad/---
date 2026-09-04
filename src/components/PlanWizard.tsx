@@ -31,7 +31,8 @@ export const COURSE_COLORS = [
   "#5c6b2b", // زيتوني فاتح
 ];
 
-type Draft = Record<number, { memoPer: number; explPer: number; start: number }>;
+/** مقرر في خطة الطالب — بلا بداية، لأنها تُحسب من الترتيب */
+type Entry = { courseId: number; memoPer: number; explPer: number };
 
 export default function PlanWizard({ courses }: { courses: Course[] }) {
   const [error, action, pending] = useActionState(savePlan, null);
@@ -40,60 +41,69 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
   const [phone, setPhone] = useState("");
   const [notes, setNotes] = useState("");
   const [cadence, setCadence] = useState<Cadence>("weekly");
-  const [draft, setDraft] = useState<Draft>({});
+  const [plan, setPlan] = useState<Entry[]>([]);
   const [currentId, setCurrentId] = useState<number | null>(null);
 
   const colorOf = (id: number) => COURSE_COLORS[courses.findIndex((c) => c.id === id) % COURSE_COLORS.length];
-  const picks: Pick[] = useMemo(
-    () =>
-      Object.entries(draft).map(([id, d]) => ({
-        courseId: Number(id),
-        memoPer: d.memoPer,
-        explPer: d.explPer,
-        start: d.start,
-      })),
-    [draft]
-  );
-  const done = picks.length;
-  const current = courses.find((c) => c.id === currentId) ?? null;
   const info = cadenceInfo(cadence);
   const periods = useMemo(() => periodsOf(cadence), [cadence]);
   const total = periods.length;
 
-  /** أول لقاء فاضٍ بعد آخر مقرر مقسّم — لمن أراد ترتيب مقرراته واحدًا تلو الآخر */
-  const nextFreePeriod = useMemo(() => {
+  /**
+   * الطالب لا يدرس مقررين في وقت واحد، فبداية كل مقرر تُشتقّ من ترتيبه:
+   * يبدأ حيث انتهى الذي قبله. لا يُخزَّن «start» مستقلًا حتى لا يتضارب.
+   */
+  const picks: Pick[] = useMemo(() => {
+    let start = 0;
+    return plan.map((e) => {
+      const course = courses.find((c) => c.id === e.courseId);
+      const pick = { courseId: e.courseId, memoPer: e.memoPer, explPer: e.explPer, start };
+      if (course) start += sessionsNeeded(course, e.memoPer, e.explPer);
+      return pick;
+    });
+  }, [plan, courses]);
+
+  const done = plan.length;
+  const current = courses.find((c) => c.id === currentId) ?? null;
+  const currentIndex = plan.findIndex((e) => e.courseId === currentId);
+
+  /** نهاية آخر مقرر في الخطة — بداية أي مقرر جديد */
+  const planEnd = useMemo(() => {
     let end = 0;
-    for (const p of picks) {
-      const c = courses.find((x) => x.id === p.courseId);
-      if (!c) continue;
-      end = Math.max(end, p.start + sessionsNeeded(c, p.memoPer, p.explPer));
+    for (const e of plan) {
+      const c = courses.find((x) => x.id === e.courseId);
+      if (c) end += sessionsNeeded(c, e.memoPer, e.explPer);
     }
-    return Math.min(end, total - 1);
-  }, [picks, courses, total]);
+    return end;
+  }, [plan, courses]);
+
+  /** بداية المقرر المفتوح حاليًا */
+  const currentStart = currentIndex >= 0 ? picks[currentIndex].start : planEnd;
 
   function openCourse(course: Course) {
     setCurrentId(course.id);
-    if (!draft[course.id]) {
-      // المقررات تُدرس بالتوازي على مدار السنة، فالبداية من أول لقاء
-      // وكل مسار يوزَّع على السنة كاملة بحجمه هو
-      setDraft((d) => ({
-        ...d,
-        [course.id]: {
-          memoPer: course.has_memo ? suggestRate(memoTotal(course), total) : 0,
-          explPer: course.has_expl ? suggestRate(explTotal(course), total) : 0,
-          start: 0,
+    if (!plan.some((e) => e.courseId === course.id)) {
+      // النصيب الافتراضي يتناسب مع حجم المقرر لا بالتساوي، وإلا خنق الكبيرُ
+      // ما بعده (التاريخ 750 صفحة لا يساوي متنًا من 154 بيتًا)
+      const rest = courses.filter((c) => !plan.some((e) => e.courseId === c.id));
+      const weight = (c: Course) => Math.max(memoTotal(c), explTotal(c), 1);
+      const sum = rest.reduce((a, c) => a + weight(c), 0) || 1;
+      const left = Math.max(1, total - planEnd);
+      const share = Math.max(1, Math.round((left * weight(course)) / sum));
+      setPlan((cur) => [
+        ...cur,
+        {
+          courseId: course.id,
+          memoPer: course.has_memo ? suggestRate(memoTotal(course), share) : 0,
+          explPer: course.has_expl ? suggestRate(explTotal(course), share) : 0,
         },
-      }));
+      ]);
     }
     setStep("split");
   }
 
   function removeCourse(id: number) {
-    setDraft((d) => {
-      const copy = { ...d };
-      delete copy[id];
-      return copy;
-    });
+    setPlan((cur) => cur.filter((e) => e.courseId !== id));
   }
 
   const schedule = useMemo(
@@ -146,7 +156,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                   type="button"
                   onClick={() => {
                     setCadence(c.key);
-                    setDraft({});
+                    setPlan([]);
                   }}
                   className="rounded-xl border py-3 text-sm font-bold transition"
                   style={{
@@ -187,8 +197,9 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {courses.map((c) => {
-              const d = draft[c.id];
-              const span = d ? spanOf(c, { courseId: c.id, ...d }, cadence) : null;
+              const idx = plan.findIndex((e) => e.courseId === c.id);
+              const d = idx >= 0 ? plan[idx] : null;
+              const span = d ? spanOf(c, picks[idx], cadence) : null;
               return (
                 <button
                   key={c.id}
@@ -241,11 +252,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       {step === "split" && current && (
         <SplitCourse
           course={current}
-          value={draft[current.id]}
+          value={plan[currentIndex]}
+          start={currentStart}
           color={colorOf(current.id)}
           cadence={cadence}
-          afterPrevious={nextFreePeriod}
-          onChange={(v) => setDraft((d) => ({ ...d, [current.id]: v }))}
+          remaining={total - currentStart}
+          onChange={(v) =>
+            setPlan((cur) => cur.map((e, i) => (i === currentIndex ? { ...e, ...v } : e)))
+          }
           onRemove={() => {
             removeCourse(current.id);
             setStep("choose");
@@ -462,27 +476,28 @@ function YearStrip({
 function SplitCourse({
   course,
   value,
+  start,
   color,
   cadence,
-  afterPrevious,
+  remaining,
   onChange,
   onRemove,
   onDone,
 }: {
   course: Course;
-  value: { memoPer: number; explPer: number; start: number };
+  value: { memoPer: number; explPer: number };
+  /** الفترة التي يبدأ منها — محسوبة من ترتيب المقرر، لا يختارها الطالب */
+  start: number;
   color: string;
   cadence: Cadence;
-  /** أول فترة بعد المقررات المقسّمة — لزر «ابدأه بعد المقررات السابقة» */
-  afterPrevious: number;
-  onChange: (v: { memoPer: number; explPer: number; start: number }) => void;
+  /** ما تبقّى من فترات السنة بعد المقررات السابقة */
+  remaining: number;
+  onChange: (v: { memoPer: number; explPer: number }) => void;
   onRemove: () => void;
   onDone: () => void;
 }) {
   const info = cadenceInfo(cadence);
-  const periods = periodsOf(cadence);
-  const span = spanOf(course, { courseId: course.id, ...value }, cadence);
-  const remaining = periods.length - value.start;
+  const span = spanOf(course, { courseId: course.id, ...value, start }, cadence);
   const set = (patch: Partial<typeof value>) => onChange({ ...value, ...patch });
 
   const presets = [
@@ -510,6 +525,16 @@ function SplitCourse({
           </p>
         </div>
       </div>
+
+      <p
+        className="rounded-lg px-3 py-2 text-xs"
+        style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}
+      >
+        {start === 0
+          ? "هذا أول مقرر في خطتك — يبدأ من أول السنة."
+          : "يبدأ بعد أن تُنهي المقرر السابق — لا تدرس مقررين في وقت واحد."}
+        {" "}المتبقّي من السنة: <strong>{periodsLabel(remaining, cadence)}</strong>.
+      </p>
 
       <div className="flex flex-wrap gap-2">
         {presets.map((p) => (
@@ -547,36 +572,6 @@ function SplitCourse({
         />
       )}
 
-      <div>
-        <div className="flex flex-wrap items-baseline gap-2">
-          <label className="label">يبدأ من</label>
-          <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-            (المقررات تسير بالتوازي — أخّره فقط إن أردت دراسته لاحقًا)
-          </span>
-          {afterPrevious > 0 && value.start !== afterPrevious && (
-            <button
-              type="button"
-              className="ms-auto text-xs font-bold underline"
-              style={{ color }}
-              onClick={() => set({ start: afterPrevious })}
-            >
-              ابدأه بعد المقررات السابقة
-            </button>
-          )}
-        </div>
-        <select
-          className="input"
-          value={value.start}
-          onChange={(e) => set({ start: Number(e.target.value) })}
-        >
-          {periods.map((pd) => (
-            <option key={pd.index} value={pd.index}>
-              {pd.label} — {pd.hijri}
-            </option>
-          ))}
-        </select>
-      </div>
-
       <div
         className="rounded-xl p-4 text-sm"
         style={{ background: `${color}14`, border: `1px solid ${color}44` }}
@@ -587,8 +582,8 @@ function SplitCourse({
           </span>
         ) : span.overflow ? (
           <span style={{ color: "var(--critical)" }}>
-            بهذا المعدل يحتاج المقرر {periodsLabel(span.count, cadence)}، وهذا يتجاوز آخر
-            {" "}{info.each} في السنة — زد المقدار أو قدّم البداية.
+            بهذا المعدل يحتاج المقرر {periodsLabel(span.count, cadence)}، والمتبقّي من السنة
+            {" "}{periodsLabel(remaining, cadence)} فقط — زد المقدار.
           </span>
         ) : (
           <>

@@ -65,6 +65,9 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
   const byId = new Map(courses.map((c) => [c.id, c]));
   const seen = new Set<number>();
 
+  // الطالب لا يدرس مقررين في وقت واحد: البداية تُشتقّ من الترتيب لا مما أرسله المتصفح
+  let cursor = 0;
+
   for (const p of picks) {
     const course = byId.get(p.courseId);
     if (!course) return "أحد المقررات لم يعد متاحًا — حدّث الصفحة وأعد التقسيم";
@@ -81,8 +84,10 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
       return `مقدار ال${course.expl_label} في «${course.name}» أكبر من المقرر كاملًا`;
     }
     const needed = sessionsNeeded(course, p.memoPer, p.explPer);
-    if (p.start + needed > total) {
-      return `«${course.name}» لا ينتهي قبل نهاية السنة — زد المقدار أو قدّم بدايته`;
+    p.start = cursor;
+    cursor += needed;
+    if (cursor > total) {
+      return `«${course.name}» لا ينتهي قبل نهاية السنة — زد المقدار أو احذف مقررًا`;
     }
   }
 

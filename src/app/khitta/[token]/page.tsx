@@ -37,6 +37,12 @@ export default async function StudentPlanPage({
               <a className="btn btn-primary text-sm" href={`/api/export/khitta/${token}`}>
                 تحميل الخطة إكسل
               </a>
+              <a
+                className="btn btn-ghost text-sm"
+                href={`/api/export/khitta/${token}?format=table`}
+              >
+                جدول تفصيلي
+              </a>
               <CopyButton text={planUrl} label="نسخ رابط خطتي" />
             </div>
           </div>
