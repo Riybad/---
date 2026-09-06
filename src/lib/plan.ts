@@ -187,5 +187,37 @@ export function periodCount(cadence: Cadence): number {
   return periodsOf(cadence).length;
 }
 
+/* ————— المدة بالأشهر: وحدة اختيار الطالب —————
+   الطالب يفكّر بـ«في كم أنهيه؟» لا بـ«كم آخذ في الأسبوع»، فالمدة
+   بالأشهر هي ما يختاره، والمقدار في الفترة يُشتقّ منها. */
+
+/** السنة تقريبًا اثنا عشر شهرًا */
+export const YEAR_MONTHS = 12;
+
+/** كم فترة تقابل هذه الأشهر في الوحدة المختارة */
+export function periodsForMonths(months: number, cadence: Cadence): number {
+  return Math.max(1, Math.round((months / YEAR_MONTHS) * periodCount(cadence)));
+}
+
+/** كم شهرًا تقابل هذه الفترات */
+export function monthsForPeriods(periods: number, cadence: Cadence): number {
+  return Math.max(1, Math.round((periods / periodCount(cadence)) * YEAR_MONTHS));
+}
+
+/** صياغة المدة: شهر واحد / شهران / 5 أشهر / 12 شهرًا */
+export function monthsLabel(n: number): string {
+  if (n <= 0) return "—";
+  if (n === 1) return "شهر واحد";
+  if (n === 2) return "شهران";
+  if (n <= 10) return `${n} أشهر`;
+  return `${n} شهرًا`;
+}
+
+/** المقدار اللازم في الفترة الواحدة لإنهاء هذا الحجم خلال مدة معيّنة */
+export function rateFor(total: number, months: number, cadence: Cadence): number {
+  if (total <= 0) return 0;
+  return Math.max(1, Math.ceil(total / periodsForMonths(months, cadence)));
+}
+
 export { cadenceInfo };
 export type { Cadence, Period };
