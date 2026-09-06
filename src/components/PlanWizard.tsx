@@ -85,9 +85,21 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
     return last.start + (c ? sessionsNeeded(c, last.memoPer, last.explPer) : 0);
   }, [picks, courses]);
 
-  /** ميزانية الطالب بالأشهر: ما استهلكه وما بقي */
-  const usedMonths = Math.min(YEAR_MONTHS, monthsForPeriods(planEnd, cadence) - (planEnd ? 0 : 1));
-  const freeMonths = Math.max(0, YEAR_MONTHS - (planEnd ? usedMonths : 0));
+  /** ميزانية الطالب بالأشهر: مجموع ما اختاره وما بقي من السنة */
+  const usedMonths = plan.reduce((a, e) => a + e.months, 0);
+  const freeMonths = Math.max(0, YEAR_MONTHS - usedMonths);
+
+  /**
+   * أقصى مدة يسمح بها لمقرر: ما بقي من السنة بعد المقررات التي قبله وبعده،
+   * مطروحًا منه شهر محجوز لكل مقرر لم يُقسَّم بعد — وإلا التهم مقرر واحد
+   * السنة كلها فلم يبقَ للباقي شيء.
+   */
+  function maxMonthsFor(index: number): number {
+    const before = plan.slice(0, index < 0 ? plan.length : index).reduce((a, e) => a + e.months, 0);
+    const after = index < 0 ? 0 : plan.slice(index + 1).reduce((a, e) => a + e.months, 0);
+    const notSplit = Math.max(0, courses.length - plan.length - (index < 0 ? 1 : 0));
+    return Math.max(1, YEAR_MONTHS - before - after - notSplit);
+  }
 
   /** بداية المقرر المفتوح حاليًا */
   const currentStart = currentIndex >= 0 ? picks[currentIndex].start : planEnd;
@@ -101,7 +113,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       const weight = (c: Course) => Math.max(memoTotal(c), explTotal(c), 1);
       const sum = rest.reduce((a, c) => a + weight(c), 0) || 1;
       const share = Math.max(1, Math.round((Math.max(1, freeMonths) * weight(course)) / sum));
-      setPlan((cur) => [...cur, { courseId: course.id, months: Math.min(share, Math.max(1, freeMonths)) }]);
+      setPlan((cur) => [...cur, { courseId: course.id, months: Math.min(share, maxMonthsFor(-1)) }]);
     }
     setStep("split");
   }
@@ -274,7 +286,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
           start={currentStart}
           color={colorOf(current.id)}
           cadence={cadence}
-          maxMonths={Math.max(1, YEAR_MONTHS - monthsForPeriods(currentStart, cadence) + (currentStart ? 0 : 1))}
+          maxMonths={maxMonthsFor(currentIndex)}
+          coursesLeft={Math.max(0, courses.length - plan.length)}
           onChange={(months) =>
             setPlan((cur) => cur.map((e, i) => (i === currentIndex ? { ...e, months } : e)))
           }
@@ -510,6 +523,7 @@ function SplitCourse({
   color,
   cadence,
   maxMonths,
+  coursesLeft,
   onChange,
   onRemove,
   onDone,
@@ -521,8 +535,10 @@ function SplitCourse({
   start: number;
   color: string;
   cadence: Cadence;
-  /** أقصى مدة تسعها بقية السنة */
+  /** أقصى مدة مسموحة — يبقي شهرًا لكل مقرر لم يُقسَّم */
   maxMonths: number;
+  /** كم مقررًا لم يُقسَّم بعد */
+  coursesLeft: number;
   onChange: (months: number) => void;
   onRemove: () => void;
   onDone: () => void;
@@ -624,8 +640,20 @@ function SplitCourse({
       <p className="text-xs" style={{ color: "var(--text-muted)" }}>
         {start === 0
           ? "هذا أول مقرر في خطتك — يبدأ من أول السنة."
-          : "يبدأ بعد أن تُنهي المقرر السابق — لا تدرس مقررين في وقت واحد."}
-        {" "}المتاح لهذا المقرر وما بعده: <strong>{monthsLabel(maxMonths)}</strong>.
+          : "يبدأ بعد أن تُنهي المقرر السابق — لا تدرس مقررين في وقت واحد."}{" "}
+        {value >= maxMonths ? (
+          <strong style={{ color: "var(--brand-amber)" }}>
+            بلغت أقصى مدة لهذا المقرر ({monthsLabel(maxMonths)})
+            {coursesLeft > 0
+              ? ` — الباقي محجوز لـ${coursesLeft === 1 ? "المقرر الأخير" : `${coursesLeft} مقررات لم تقسّمها`}.`
+              : " — لتزيده قلّل مدة مقرر آخر."}
+          </strong>
+        ) : (
+          <>
+            أقصى مدة له: <strong>{monthsLabel(maxMonths)}</strong>
+            {coursesLeft > 0 && " (الباقي محجوز لبقية المقررات)"}.
+          </>
+        )}
       </p>
 
       <div className="flex flex-wrap gap-2">
