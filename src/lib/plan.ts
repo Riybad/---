@@ -187,36 +187,46 @@ export function periodCount(cadence: Cadence): number {
   return periodsOf(cadence).length;
 }
 
-/* ————— المدة بالأشهر: وحدة اختيار الطالب —————
-   الطالب يفكّر بـ«في كم أنهيه؟» لا بـ«كم آخذ في الأسبوع»، فالمدة
-   بالأشهر هي ما يختاره، والمقدار في الفترة يُشتقّ منها. */
+/* ————— المدة بالأسابيع: وحدة اختيار الطالب —————
+   الطالب يفكّر بـ«في كم أنهيه؟» لا بـ«كم آخذ في الأسبوع». والأسبوع
+   أدقّ من الشهر: يتيح إنهاء متن قصير في أسبوعين بدل شهر كامل. */
 
-/** السنة تقريبًا اثنا عشر شهرًا */
-export const YEAR_MONTHS = 12;
+/** أسابيع السنة كاملة (366 يومًا) */
+export const YEAR_WEEKS = 53;
 
-/** كم فترة تقابل هذه الأشهر في الوحدة المختارة */
-export function periodsForMonths(months: number, cadence: Cadence): number {
-  return Math.max(1, Math.round((months / YEAR_MONTHS) * periodCount(cadence)));
+/** كم فترة تقابل هذه الأسابيع في الوحدة المختارة */
+export function periodsForWeeks(weeks: number, cadence: Cadence): number {
+  return Math.max(1, Math.round((weeks / YEAR_WEEKS) * periodCount(cadence)));
 }
 
-/** كم شهرًا تقابل هذه الفترات */
-export function monthsForPeriods(periods: number, cadence: Cadence): number {
-  return Math.max(1, Math.round((periods / periodCount(cadence)) * YEAR_MONTHS));
+/** كم أسبوعًا تقابل هذه الفترات */
+export function weeksForPeriods(periods: number, cadence: Cadence): number {
+  return Math.max(1, Math.round((periods / periodCount(cadence)) * YEAR_WEEKS));
 }
 
-/** صياغة المدة: شهر واحد / شهران / 5 أشهر / 12 شهرًا */
-export function monthsLabel(n: number): string {
+/** صياغة المدة بالأسابيع، ومعها ما يقابلها بالأشهر إذا طالت */
+export function weeksLabel(n: number): string {
   if (n <= 0) return "—";
-  if (n === 1) return "شهر واحد";
-  if (n === 2) return "شهران";
-  if (n <= 10) return `${n} أشهر`;
-  return `${n} شهرًا`;
+  if (n === 1) return "أسبوع واحد";
+  if (n === 2) return "أسبوعان";
+  if (n <= 10) return `${n} أسابيع`;
+  return `${n} أسبوعًا`;
+}
+
+/** «شهران تقريبًا» — تُعرض بجانب الأسابيع لتقريب المدة الطويلة */
+export function approxMonths(weeks: number): string {
+  const months = Math.round(weeks / 4.4);
+  if (months < 1) return "";
+  if (months === 1) return "شهر تقريبًا";
+  if (months === 2) return "شهران تقريبًا";
+  if (months <= 10) return `${months} أشهر تقريبًا`;
+  return `${months} شهرًا تقريبًا`;
 }
 
 /** المقدار اللازم في الفترة الواحدة لإنهاء هذا الحجم خلال مدة معيّنة */
-export function rateFor(total: number, months: number, cadence: Cadence): number {
+export function rateFor(total: number, weeks: number, cadence: Cadence): number {
   if (total <= 0) return 0;
-  return Math.max(1, Math.ceil(total / periodsForMonths(months, cadence)));
+  return Math.max(1, Math.ceil(total / periodsForWeeks(weeks, cadence)));
 }
 
 export { cadenceInfo };

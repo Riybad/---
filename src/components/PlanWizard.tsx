@@ -8,15 +8,15 @@ import {
   buildSchedule,
   explTotal,
   memoTotal,
-  monthsForPeriods,
-  monthsLabel,
-  periodsForMonths,
+  approxMonths,
   portionText,
   rateFor,
   sessionsNeeded,
   spanOf,
   unitLabel,
-  YEAR_MONTHS,
+  weeksForPeriods,
+  weeksLabel,
+  YEAR_WEEKS,
   type Course,
   type Pick,
 } from "@/lib/plan";
@@ -33,8 +33,8 @@ export const COURSE_COLORS = [
   "#5c6b2b", // زيتوني فاتح
 ];
 
-/** مقرر في خطة الطالب: مدته بالأشهر فقط — البداية والمقادير تُشتقّ */
-type Entry = { courseId: number; months: number };
+/** مقرر في خطة الطالب: مدته بالأسابيع فقط — البداية والمقادير تُشتقّ */
+type Entry = { courseId: number; weeks: number };
 
 export default function PlanWizard({ courses }: { courses: Course[] }) {
   const [error, action, pending] = useActionState(savePlan, null);
@@ -62,8 +62,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       if (!course) return { courseId: e.courseId, memoPer: 0, explPer: 0, start };
       const pick = {
         courseId: e.courseId,
-        memoPer: rateFor(memoTotal(course), e.months, cadence),
-        explPer: rateFor(explTotal(course), e.months, cadence),
+        memoPer: rateFor(memoTotal(course), e.weeks, cadence),
+        explPer: rateFor(explTotal(course), e.weeks, cadence),
         start,
       };
       start += sessionsNeeded(course, pick.memoPer, pick.explPer);
@@ -85,20 +85,20 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
     return last.start + (c ? sessionsNeeded(c, last.memoPer, last.explPer) : 0);
   }, [picks, courses]);
 
-  /** ميزانية الطالب بالأشهر: مجموع ما اختاره وما بقي من السنة */
-  const usedMonths = plan.reduce((a, e) => a + e.months, 0);
-  const freeMonths = Math.max(0, YEAR_MONTHS - usedMonths);
+  /** ميزانية الطالب بالأسابيع: مجموع ما اختاره وما بقي من السنة */
+  const usedWeeks = plan.reduce((a, e) => a + e.weeks, 0);
+  const freeWeeks = Math.max(0, YEAR_WEEKS - usedWeeks);
 
   /**
    * أقصى مدة يسمح بها لمقرر: ما بقي من السنة بعد المقررات التي قبله وبعده،
-   * مطروحًا منه شهر محجوز لكل مقرر لم يُقسَّم بعد — وإلا التهم مقرر واحد
+   * مطروحًا منه أسبوع محجوز لكل مقرر لم يُقسَّم بعد — وإلا التهم مقرر واحد
    * السنة كلها فلم يبقَ للباقي شيء.
    */
-  function maxMonthsFor(index: number): number {
-    const before = plan.slice(0, index < 0 ? plan.length : index).reduce((a, e) => a + e.months, 0);
-    const after = index < 0 ? 0 : plan.slice(index + 1).reduce((a, e) => a + e.months, 0);
+  function maxWeeksFor(index: number): number {
+    const before = plan.slice(0, index < 0 ? plan.length : index).reduce((a, e) => a + e.weeks, 0);
+    const after = index < 0 ? 0 : plan.slice(index + 1).reduce((a, e) => a + e.weeks, 0);
     const notSplit = Math.max(0, courses.length - plan.length - (index < 0 ? 1 : 0));
-    return Math.max(1, YEAR_MONTHS - before - after - notSplit);
+    return Math.max(1, YEAR_WEEKS - before - after - notSplit);
   }
 
   /** بداية المقرر المفتوح حاليًا */
@@ -112,8 +112,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       const rest = courses.filter((c) => !plan.some((e) => e.courseId === c.id));
       const weight = (c: Course) => Math.max(memoTotal(c), explTotal(c), 1);
       const sum = rest.reduce((a, c) => a + weight(c), 0) || 1;
-      const share = Math.max(1, Math.round((Math.max(1, freeMonths) * weight(course)) / sum));
-      setPlan((cur) => [...cur, { courseId: course.id, months: Math.min(share, maxMonthsFor(-1)) }]);
+      const share = Math.max(1, Math.round((Math.max(1, freeWeeks) * weight(course)) / sum));
+      setPlan((cur) => [...cur, { courseId: course.id, weeks: Math.min(share, maxWeeksFor(-1)) }]);
     }
     setStep("split");
   }
@@ -207,13 +207,13 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
               {done === 0 ? "بأي مقرر تحب تبدأ؟" : "اختر المقرر التالي"}
             </h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
-              اضغط على المقرر وحدّد في كم شهرًا تنهيه — واحدًا تلو الآخر حتى تكمل الخمسة.
+              اضغط على المقرر وحدّد في كم أسبوعًا تنهيه — واحدًا تلو الآخر حتى تكمل الخمسة.
             </p>
             <p className="mt-2 text-sm font-bold" style={{ color: "var(--brand-olive)" }}>
-              {freeMonths >= YEAR_MONTHS
-                ? `أمامك ${monthsLabel(YEAR_MONTHS)} توزّعها على المقررات`
-                : freeMonths > 0
-                  ? `استهلكت ${monthsLabel(YEAR_MONTHS - freeMonths)} · بقي لك ${monthsLabel(freeMonths)}`
+              {freeWeeks >= YEAR_WEEKS
+                ? `أمامك ${weeksLabel(YEAR_WEEKS)} توزّعها على المقررات`
+                : freeWeeks > 0
+                  ? `استهلكت ${weeksLabel(YEAR_WEEKS - freeWeeks)} · بقي لك ${weeksLabel(freeWeeks)}`
                   : "اكتملت السنة — لم يبقَ وقت لمقرر آخر"}
             </p>
           </div>
@@ -248,7 +248,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
 
                   {span?.endPeriod && (
                     <div className="mt-2 text-xs font-semibold" style={{ color: colorOf(c.id) }}>
-                      {monthsLabel(monthsForPeriods(span.count, cadence))} · ينتهي{" "}
+                      {weeksLabel(weeksForPeriods(span.count, cadence))} · ينتهي{" "}
                       {span.endPeriod?.last.hijri}
                     </div>
                   )}
@@ -282,14 +282,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       {step === "split" && current && (
         <SplitCourse
           course={current}
-          months={plan[currentIndex]?.months ?? 1}
+          weeks={plan[currentIndex]?.weeks ?? 1}
           start={currentStart}
           color={colorOf(current.id)}
           cadence={cadence}
-          maxMonths={maxMonthsFor(currentIndex)}
+          maxWeeks={maxWeeksFor(currentIndex)}
           coursesLeft={Math.max(0, courses.length - plan.length)}
-          onChange={(months) =>
-            setPlan((cur) => cur.map((e, i) => (i === currentIndex ? { ...e, months } : e)))
+          onChange={(weeks) =>
+            setPlan((cur) => cur.map((e, i) => (i === currentIndex ? { ...e, weeks } : e)))
           }
           onRemove={() => {
             removeCourse(current.id);
@@ -312,7 +312,7 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
             <div className="grid gap-2 sm:grid-cols-3 text-sm">
               <Fact label="الطالب" value={name} />
               <Fact label="عدد المقررات" value={`${done}`} />
-              <Fact label="مدة الخطة" value={monthsLabel(Math.max(0, YEAR_MONTHS - freeMonths))} />
+              <Fact label="مدة الخطة" value={weeksLabel(Math.max(0, YEAR_WEEKS - freeWeeks))} />
             </div>
             <YearStrip picks={picks} courses={courses} colorOf={colorOf} cadence={cadence} />
             {total - planEnd > 0 && (
@@ -320,8 +320,8 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
                 className="rounded-lg px-3 py-2 text-sm"
                 style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}
               >
-                تنتهي خطتك قبل نهاية السنة بـ{monthsLabel(freeMonths)} — إن أردت ملء السنة
-                كلها فارجع وزد مدة أحد المقررات.
+                تنتهي خطتك قبل نهاية السنة بـ{weeksLabel(freeWeeks)} — إن أردت ملء السنة كلها
+                فارجع وزد مدة أحد المقررات.
               </p>
             )}
             <div>
@@ -518,37 +518,38 @@ function YearStrip({
 
 function SplitCourse({
   course,
-  months,
+  weeks,
   start,
   color,
   cadence,
-  maxMonths,
+  maxWeeks,
   coursesLeft,
   onChange,
   onRemove,
   onDone,
 }: {
   course: Course;
-  /** مدة المقرر بالأشهر — هذا كل ما يختاره الطالب */
-  months: number;
+  /** مدة المقرر بالأسابيع — هذا كل ما يختاره الطالب */
+  weeks: number;
   /** الفترة التي يبدأ منها — محسوبة من ترتيب المقرر */
   start: number;
   color: string;
   cadence: Cadence;
-  /** أقصى مدة مسموحة — يبقي شهرًا لكل مقرر لم يُقسَّم */
-  maxMonths: number;
+  /** أقصى مدة مسموحة — تبقي أسبوعًا لكل مقرر لم يُقسَّم */
+  maxWeeks: number;
   /** كم مقررًا لم يُقسَّم بعد */
   coursesLeft: number;
-  onChange: (months: number) => void;
+  onChange: (weeks: number) => void;
   onRemove: () => void;
   onDone: () => void;
 }) {
   const info = cadenceInfo(cadence);
-  const value = Math.min(Math.max(1, months), maxMonths);
+  const value = Math.min(Math.max(1, weeks), maxWeeks);
   const memoPer = rateFor(memoTotal(course), value, cadence);
   const explPer = rateFor(explTotal(course), value, cadence);
   const span = spanOf(course, { courseId: course.id, memoPer, explPer, start }, cadence);
-  const quick = [1, 2, 3, 4, 6, 8, 12].filter((m) => m <= maxMonths);
+  const quick = [1, 2, 4, 6, 8, 13, 20, 26, 40, 53].filter((w) => w <= maxWeeks);
+  const approx = approxMonths(value);
 
   return (
     <div className="card p-5 grid gap-5">
@@ -565,47 +566,52 @@ function SplitCourse({
 
       {/* السؤال الوحيد: في كم تنهيه؟ */}
       <div>
-        <label className="label text-base">في كم مدة تنهي هذا المقرر؟</label>
+        <label className="label text-base">في كم أسبوعًا تنهي هذا المقرر؟</label>
         <div className="mt-2 flex items-center justify-center gap-4">
           <button
             type="button"
             className="btn btn-ghost h-12 w-12 shrink-0 justify-center text-2xl"
             disabled={value <= 1}
             onClick={() => onChange(value - 1)}
-            aria-label="أنقص شهرًا"
+            aria-label="أنقص أسبوعًا"
           >
             −
           </button>
           <div className="min-w-32 text-center">
             <div className="text-3xl font-extrabold" style={{ color }}>
-              {monthsLabel(value)}
+              {weeksLabel(value)}
             </div>
+            {approx && (
+              <div className="mt-0.5 text-xs" style={{ color: "var(--text-muted)" }}>
+                {approx}
+              </div>
+            )}
           </div>
           <button
             type="button"
             className="btn btn-ghost h-12 w-12 shrink-0 justify-center text-2xl"
-            disabled={value >= maxMonths}
+            disabled={value >= maxWeeks}
             onClick={() => onChange(value + 1)}
-            aria-label="زد شهرًا"
+            aria-label="زد أسبوعًا"
           >
             +
           </button>
         </div>
         {quick.length > 1 && (
           <div className="mt-3 flex flex-wrap justify-center gap-2">
-            {quick.map((m) => (
+            {quick.map((w) => (
               <button
-                key={m}
+                key={w}
                 type="button"
-                onClick={() => onChange(m)}
+                onClick={() => onChange(w)}
                 className="rounded-full border px-3 py-1 text-sm font-bold transition"
                 style={{
-                  borderColor: m === value ? color : "var(--hairline)",
-                  background: m === value ? `${color}18` : "transparent",
-                  color: m === value ? color : "var(--text-secondary)",
+                  borderColor: w === value ? color : "var(--hairline)",
+                  background: w === value ? `${color}18` : "transparent",
+                  color: w === value ? color : "var(--text-secondary)",
                 }}
               >
-                {monthsLabel(m)}
+                {w === 1 ? "أسبوع" : w}
               </button>
             ))}
           </div>
@@ -632,7 +638,10 @@ function SplitCourse({
             </li>
           )}
         </ul>
-        <div className="mt-3 border-t pt-2 text-xs" style={{ borderColor: `${color}33`, color: "var(--text-muted)" }}>
+        <div
+          className="mt-3 border-t pt-2 text-xs"
+          style={{ borderColor: `${color}33`, color: "var(--text-muted)" }}
+        >
           يبدأ {span.startPeriod?.first.hijri} وينتهي {span.endPeriod?.last.hijri}
         </div>
       </div>
@@ -641,16 +650,16 @@ function SplitCourse({
         {start === 0
           ? "هذا أول مقرر في خطتك — يبدأ من أول السنة."
           : "يبدأ بعد أن تُنهي المقرر السابق — لا تدرس مقررين في وقت واحد."}{" "}
-        {value >= maxMonths ? (
+        {value >= maxWeeks ? (
           <strong style={{ color: "var(--brand-amber)" }}>
-            بلغت أقصى مدة لهذا المقرر ({monthsLabel(maxMonths)})
+            بلغت أقصى مدة لهذا المقرر ({weeksLabel(maxWeeks)})
             {coursesLeft > 0
               ? ` — الباقي محجوز لـ${coursesLeft === 1 ? "المقرر الأخير" : `${coursesLeft} مقررات لم تقسّمها`}.`
               : " — لتزيده قلّل مدة مقرر آخر."}
           </strong>
         ) : (
           <>
-            أقصى مدة له: <strong>{monthsLabel(maxMonths)}</strong>
+            أقصى مدة له: <strong>{weeksLabel(maxWeeks)}</strong>
             {coursesLeft > 0 && " (الباقي محجوز لبقية المقررات)"}.
           </>
         )}
