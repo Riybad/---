@@ -6,12 +6,12 @@ import { PUBLIC_TRACK, trackInfo } from "@/lib/tracks";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "خطتي السنوية — نبغ",
+  title: "خطتي السنوية — نخب",
   description: "قسّم مقرراتك الخمسة على السنة بين الحفظ والشرح، واحفظ خطتك برابط خاص بك.",
   openGraph: {
-    title: "خطتي السنوية — نبغ",
+    title: "خطتي السنوية — نخب",
     description: "قسّم مقرراتك الخمسة على السنة بين الحفظ والشرح، واحفظ خطتك برابط خاص بك.",
-    images: ["/logo-nabgh.png"],
+    images: ["/logo-nokhab.png"],
   },
 };
 
@@ -25,7 +25,7 @@ export default async function KhittaPage() {
       <div className="mx-auto w-full max-w-3xl">
         <div className="card sunny-card mb-4 p-6 text-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-3 h-16 w-auto" />
+          <img src="/logo-nokhab.png" alt="شعار نخب" className="mx-auto mb-3 h-16 w-auto" />
           <h1 className="page-title text-xl">خطتي السنوية</h1>
           <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
             {track.name}

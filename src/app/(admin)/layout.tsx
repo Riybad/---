@@ -20,8 +20,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       >
         <Link href="/" className="flex items-center gap-3">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-nabgh.png" alt="شعار نبغ" className="h-11 w-auto" />
-          <span className="text-lg font-bold">نبغ — لوحة الطلاب</span>
+          <img src="/logo-nokhab.png" alt="شعار نخب" className="h-11 w-auto" />
+          <span className="text-lg font-bold">نخب — لوحة الطلاب</span>
         </Link>
         <nav className="flex flex-wrap gap-1 text-sm font-semibold">
           {NAV.map(([href, label]) => (
