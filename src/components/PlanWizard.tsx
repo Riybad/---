@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState, useMemo, useState } from "react";
-import { savePlan } from "@/app/plan-actions";
+import { savePlan, savePlanForToken } from "@/app/plan-actions";
 import { CADENCES, cadenceInfo, gregShort, periodsOf, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import {
@@ -36,11 +36,23 @@ export const COURSE_COLORS = [
 /** مقرر في خطة الطالب: مدته بالأسابيع فقط — البداية والمقادير تُشتقّ */
 type Entry = { courseId: number; weeks: number };
 
-export default function PlanWizard({ courses }: { courses: Course[] }) {
-  const [error, action, pending] = useActionState(savePlan, null);
+/** طالب سجّله المشرف مسبقًا ويقسّم خطته من رابطه الخاص */
+export type WizardStudent = { name: string; phone: string; token: string };
+
+export default function PlanWizard({
+  courses,
+  student,
+}: {
+  courses: Course[];
+  student?: WizardStudent;
+}) {
+  const [error, action, pending] = useActionState(
+    student ? savePlanForToken : savePlan,
+    null
+  );
   const [step, setStep] = useState<"who" | "choose" | "split" | "review">("who");
-  const [name, setName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [name, setName] = useState(student?.name ?? "");
+  const [phone, setPhone] = useState(student?.phone ?? "");
   const [notes, setNotes] = useState("");
   const [cadence, setCadence] = useState<Cadence>("weekly");
   const [plan, setPlan] = useState<Entry[]>([]);
@@ -135,33 +147,35 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
       {step === "who" && (
         <div className="card p-5 grid gap-4">
           <div>
-            <h2 className="text-lg font-bold">أهلًا بك</h2>
+            <h2 className="text-lg font-bold">{student ? `أهلًا ${student.name}` : "أهلًا بك"}</h2>
             <p className="text-sm mt-1" style={{ color: "var(--text-muted)" }}>
               بعدها نختار المقرر الذي تبدأ به، ونقسّمه معك على السنة — دراسة ذاتية بمعدّل تختاره
               أنت.
             </p>
           </div>
-          <div className="grid gap-3">
-            <div>
-              <label className="label">الاسم الكامل</label>
-              <input
-                className="input"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                autoFocus
-              />
+          {!student && (
+            <div className="grid gap-3">
+              <div>
+                <label className="label">الاسم الكامل</label>
+                <input
+                  className="input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="label">رقم الجوال (اختياري)</label>
+                <input
+                  className="input"
+                  dir="ltr"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="05xxxxxxxx"
+                />
+              </div>
             </div>
-            <div>
-              <label className="label">رقم الجوال (اختياري)</label>
-              <input
-                className="input"
-                dir="ltr"
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="05xxxxxxxx"
-              />
-            </div>
-          </div>
+          )}
           <div>
             <label className="label">كيف تحب تستلم خطتك؟</label>
             <div className="grid grid-cols-3 gap-2">
@@ -301,8 +315,14 @@ export default function PlanWizard({ courses }: { courses: Course[] }) {
 
       {step === "review" && (
         <form action={action} className="grid gap-4">
-          <input type="hidden" name="name" value={name} />
-          <input type="hidden" name="phone" value={phone} />
+          {student ? (
+            <input type="hidden" name="token" value={student.token} />
+          ) : (
+            <>
+              <input type="hidden" name="name" value={name} />
+              <input type="hidden" name="phone" value={phone} />
+            </>
+          )}
           <input type="hidden" name="notes" value={notes} />
           <input type="hidden" name="cadence" value={cadence} />
           <input type="hidden" name="picks" value={JSON.stringify(picks)} />

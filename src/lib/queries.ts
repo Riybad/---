@@ -1,13 +1,23 @@
 import { q, type Student, type PlanItem } from "./db";
 import type { Course, Pick } from "./plan";
+import type { TrackKey } from "./tracks";
 
 /* ————— المقررات وخطط الطلاب ————— */
 
-export async function listCourses(includeInactive = false): Promise<Course[]> {
-  const sql = includeInactive
-    ? "SELECT * FROM courses ORDER BY sort_order, id"
-    : "SELECT * FROM courses WHERE active ORDER BY sort_order, id";
-  return (await q(sql)) as Course[];
+/**
+ * مقررات مسار واحد أو المقررات كلها.
+ * `track` غير محدّد يعني الكل — وهو ما تحتاجه التصديرات وحلّ مقررات
+ * الخطط المحفوظة، فمقرر الطالب يُطلب بمعرّفه لا بمساره.
+ */
+export async function listCourses(
+  includeInactive = false,
+  track?: TrackKey
+): Promise<Course[]> {
+  const where = [includeInactive ? "" : "active", track ? "track = $1" : ""]
+    .filter(Boolean)
+    .join(" AND ");
+  const sql = `SELECT * FROM courses${where ? ` WHERE ${where}` : ""} ORDER BY sort_order, id`;
+  return (await q(sql, track ? [track] : [])) as Course[];
 }
 
 export async function getCourse(id: number): Promise<Course | undefined> {
@@ -15,14 +25,19 @@ export async function getCourse(id: number): Promise<Course | undefined> {
   return rows[0] as Course | undefined;
 }
 
-export async function listStudents(search?: string): Promise<Student[]> {
+export async function listStudents(search?: string, track?: TrackKey): Promise<Student[]> {
+  const where: string[] = [];
+  const params: unknown[] = [];
   if (search) {
-    return (await q(
-      "SELECT * FROM students WHERE name ILIKE $1 OR phone ILIKE $1 ORDER BY id DESC",
-      [`%${search}%`]
-    )) as Student[];
+    params.push(`%${search}%`);
+    where.push(`(name ILIKE $${params.length} OR phone ILIKE $${params.length})`);
   }
-  return (await q("SELECT * FROM students ORDER BY id DESC")) as Student[];
+  if (track) {
+    params.push(track);
+    where.push(`track = $${params.length}`);
+  }
+  const sql = `SELECT * FROM students${where.length ? ` WHERE ${where.join(" AND ")}` : ""} ORDER BY id DESC`;
+  return (await q(sql, params)) as Student[];
 }
 
 export async function getStudent(id: number): Promise<Student | undefined> {

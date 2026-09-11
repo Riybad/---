@@ -4,9 +4,18 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/auth";
 import { newPlanToken, q } from "@/lib/db";
-import { listCourses } from "@/lib/queries";
-import { explTotal, memoTotal, periodCount, sessionsNeeded, UNITS } from "@/lib/plan";
+import { listCourses, listPlanItems } from "@/lib/queries";
+import {
+  defaultWeeks,
+  explTotal,
+  memoTotal,
+  periodCount,
+  picksFromWeeks,
+  sessionsNeeded,
+  UNITS,
+} from "@/lib/plan";
 import type { Cadence } from "@/lib/calendar";
+import { parseTrack, PUBLIC_TRACK, trackInfo, type TrackKey } from "@/lib/tracks";
 
 /* ————— خطة الطالب (من الرابط العام) ————— */
 
@@ -44,38 +53,38 @@ function parsePicks(raw: string, total: number): SubmittedPick[] {
 }
 
 /**
- * يحفظ خطة الطالب. تُعاد التحقّقات كلها هنا لأن الحسابات في المتصفح
- * قابلة للتلاعب — لا نثق إلا بالمقررات القادمة من قاعدة البيانات.
+ * يتحقّق من بنود الخطة ويعيد اشتقاق بداية كل مقرر من ترتيبه.
+ * الحسابات في المتصفح قابلة للتلاعب، فلا نثق إلا بالمقررات من القاعدة.
+ * يعيد نصّ خطأ، أو البنود جاهزة للحفظ.
  */
-export async function savePlan(_prev: string | null, formData: FormData): Promise<string | null> {
-  const name = String(formData.get("name") ?? "").trim();
-  const phone = String(formData.get("phone") ?? "").trim();
-  const stage = String(formData.get("stage") ?? "").trim();
-  const notes = String(formData.get("notes") ?? "").trim();
+async function validatePlan(
+  picks: SubmittedPick[],
+  cadence: Cadence,
+  track: TrackKey,
+  { requireAll = true }: { requireAll?: boolean } = {}
+): Promise<string | SubmittedPick[]> {
+  if (picks.length === 0) return "لم تختر أي مقرر — اختر مقررًا واحدًا على الأقل";
 
-  if (name.length < 3) return "فضلًا اكتب الاسم كاملًا";
-  if (phone && !/^[0-9+\s-]{8,20}$/.test(phone)) return "رقم الجوال غير صحيح";
-
-  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
   const total = periodCount(cadence);
-  const picks = parsePicks(String(formData.get("picks") ?? "[]"), total);
-  if (picks.length === 0) return "لم تختر أي مقرر — ارجع واختر مقررًا واحدًا على الأقل";
-
-  const courses = await listCourses();
+  // خطة الطالب لا تُبنى إلا من مقررات مساره
+  const courses = await listCourses(false, track);
   const byId = new Map(courses.map((c) => [c.id, c]));
   const seen = new Set<number>();
 
-  const missing = courses.filter((c) => !picks.some((p) => p.courseId === c.id));
-  if (missing.length > 0) {
-    return `الخطة ناقصة — لم تقسّم: ${missing.map((c) => c.name).join("، ")}`;
+  if (requireAll) {
+    const missing = courses.filter((c) => !picks.some((p) => p.courseId === c.id));
+    if (missing.length > 0) {
+      return `الخطة ناقصة — لم تقسّم: ${missing.map((c) => c.name).join("، ")}`;
+    }
   }
 
-  // الطالب لا يدرس مقررين في وقت واحد: البداية تُشتقّ من الترتيب لا مما أرسله المتصفح
+  // الطالب لا يدرس مقررين في وقت واحد: البداية تُشتقّ من الترتيب
   let cursor = 0;
-
   for (const p of picks) {
     const course = byId.get(p.courseId);
-    if (!course) return "أحد المقررات لم يعد متاحًا — حدّث الصفحة وأعد التقسيم";
+    if (!course) {
+      return `أحد المقررات ليس من مقررات ${trackInfo(track).name} أو لم يعد متاحًا — حدّث الصفحة وأعد التقسيم`;
+    }
     if (seen.has(p.courseId)) return `المقرر «${course.name}» مكرر في الخطة`;
     seen.add(p.courseId);
     if (!course.has_memo && p.memoPer > 0) return `المقرر «${course.name}» ليس فيه حفظ`;
@@ -88,39 +97,233 @@ export async function savePlan(_prev: string | null, formData: FormData): Promis
     if (p.explPer > explTotal(course)) {
       return `مقدار ال${course.expl_label} في «${course.name}» أكبر من المقرر كاملًا`;
     }
-    const needed = sessionsNeeded(course, p.memoPer, p.explPer);
     p.start = cursor;
-    cursor += needed;
+    cursor += sessionsNeeded(course, p.memoPer, p.explPer);
     if (cursor > total) {
       return `«${course.name}» لا ينتهي قبل نهاية السنة — زد المقدار أو احذف مقررًا`;
     }
   }
+  return picks;
+}
 
-  const token = newPlanToken();
-  // الطالب وبنود خطته في استعلام واحد: إما يُحفظ كله أو لا شيء، وبلا ذهاب وإياب
-  // متكرر إلى القاعدة عندما يدخل عدة طلاب في وقت واحد
+/** يستبدل بنود خطة طالب دفعةً واحدة */
+async function replacePlanItems(studentId: number, picks: SubmittedPick[]): Promise<void> {
+  await q("DELETE FROM plan_items WHERE student_id = $1", [studentId]);
+  if (picks.length === 0) return;
   const values = picks
     .map((_, i) => {
-      const b = 7 + i * 5;
-      return `($${b}::int, $${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int)`;
+      const b = 2 + i * 5;
+      return `($1::int, $${b}::int, $${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int)`;
     })
     .join(", ");
   await q(
-    `WITH s AS (
-       INSERT INTO students (name, phone, stage, notes, cadence, token)
-       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id
-     )
-     INSERT INTO plan_items (student_id, course_id, ord, memo_per, expl_per, start_session)
-     SELECT s.id, v.course_id, v.ord, v.memo_per, v.expl_per, v.start_session
-     FROM s, (VALUES ${values}) AS v(course_id, ord, memo_per, expl_per, start_session)`,
-    [
-      name, phone, stage, notes, cadence, token,
-      ...picks.flatMap((p, i) => [p.courseId, i, p.memoPer, p.explPer, p.start]),
-    ]
+    `INSERT INTO plan_items (student_id, course_id, ord, memo_per, expl_per, start_session)
+     VALUES ${values}`,
+    [studentId, ...picks.flatMap((p, i) => [p.courseId, i, p.memoPer, p.explPer, p.start])]
   );
+}
+
+/**
+ * يحفظ خطة الطالب. تُعاد التحقّقات كلها هنا لأن الحسابات في المتصفح
+ * قابلة للتلاعب — لا نثق إلا بالمقررات القادمة من قاعدة البيانات.
+ */
+export async function savePlan(_prev: string | null, formData: FormData): Promise<string | null> {
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+
+  if (name.length < 3) return "فضلًا اكتب الاسم كاملًا";
+  if (phone && !/^[0-9+\s-]{8,20}$/.test(phone)) return "رقم الجوال غير صحيح";
+
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+  const picks = parsePicks(String(formData.get("picks") ?? "[]"), periodCount(cadence));
+  // الرابط العام يخدم المسار العام وحده
+  const checked = await validatePlan(picks, cadence, PUBLIC_TRACK);
+  if (typeof checked === "string") return checked;
+
+  const token = newPlanToken();
+  const rows = await q(
+    `INSERT INTO students (name, phone, notes, cadence, track, token)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [name, phone, notes, cadence, PUBLIC_TRACK, token]
+  );
+  await replacePlanItems(rows[0].id as number, checked);
 
   revalidatePath("/", "layout");
   redirect(`/khitta/${token}`);
+}
+
+/**
+ * يقسّم طالبٌ سجّله المشرفُ مسبقًا خطتَه من رابطه الخاص.
+ * لا يُنشئ طالبًا جديدًا، ولا يقبل إلا خطةً واحدة: بعدها يعدّلها المشرف.
+ */
+export async function savePlanForToken(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  const token = String(formData.get("token") ?? "").trim();
+  const rows = await q("SELECT id, cadence, track FROM students WHERE token = $1", [token]);
+  if (rows.length === 0) return "الرابط غير صحيح — راجع المشرف";
+  const id = rows[0].id as number;
+
+  const existing = await q("SELECT COUNT(*)::int AS n FROM plan_items WHERE student_id = $1", [id]);
+  if (Number(existing[0]?.n ?? 0) > 0) return "خطتك محفوظة — راجع المشرف إن أردت تعديلها";
+
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+  const track = parseTrack(rows[0].track);
+  const picks = parsePicks(String(formData.get("picks") ?? "[]"), periodCount(cadence));
+  const checked = await validatePlan(picks, cadence, track);
+  if (typeof checked === "string") return checked;
+
+  const notes = String(formData.get("notes") ?? "").trim();
+  await q("UPDATE students SET cadence = $1, notes = $2, updated_at = now() WHERE id = $3", [
+    cadence,
+    notes,
+    id,
+  ]);
+  await replacePlanItems(id, checked);
+
+  revalidatePath("/", "layout");
+  redirect(`/khitta/${token}`);
+}
+
+/* ————— الطلاب من اللوحة: إضافة وتعديل ————— */
+
+/** يضيف طالبًا من اللوحة — بخطة جاهزة أو بلا خطة ليقسّمها بنفسه */
+export async function createStudent(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  await requireAdmin();
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  if (name.length < 3) return "فضلًا اكتب الاسم كاملًا";
+  if (phone && !/^[0-9+\s-]{8,20}$/.test(phone)) return "رقم الجوال غير صحيح";
+
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+  const track = parseTrack(formData.get("track"));
+  const raw = String(formData.get("picks") ?? "[]");
+  const picks = parsePicks(raw, periodCount(cadence));
+
+  // «قسّم له الآن»: توزيع مبدئي على مقررات مساره يعدّله المشرف بعدها
+  let checked: SubmittedPick[] = [];
+  if (String(formData.get("mode") ?? "") === "plan" && picks.length === 0) {
+    const trackCourses = await listCourses(false, track);
+    picks.push(...picksFromWeeks(trackCourses, defaultWeeks(trackCourses, cadence), cadence));
+  }
+  // خطة فارغة مقصودة: يُنشأ الطالب ليقسّم له المشرف لاحقًا أو يقسّم هو من رابطه
+  if (picks.length > 0) {
+    const result = await validatePlan(picks, cadence, track, { requireAll: false });
+    if (typeof result === "string") return result;
+    checked = result;
+  }
+
+  const token = newPlanToken();
+  const rows = await q(
+    `INSERT INTO students (name, phone, notes, cadence, track, token)
+     VALUES ($1, $2, $3, $4, $5, $6) RETURNING id`,
+    [name, phone, notes, cadence, track, token]
+  );
+  await replacePlanItems(rows[0].id as number, checked);
+
+  revalidatePath("/", "layout");
+  redirect(`/students/${rows[0].id}`);
+}
+
+/** يعدّل بيانات الطالب: الاسم والجوال والمسار ووحدة العرض والملاحظات */
+export async function updateStudent(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  await requireAdmin();
+  const id = Number(formData.get("id") ?? 0);
+  const name = String(formData.get("name") ?? "").trim();
+  const phone = String(formData.get("phone") ?? "").trim();
+  const notes = String(formData.get("notes") ?? "").trim();
+  if (id <= 0) return "الطالب غير موجود";
+  if (name.length < 3) return "فضلًا اكتب الاسم كاملًا";
+  if (phone && !/^[0-9+\s-]{8,20}$/.test(phone)) return "رقم الجوال غير صحيح";
+
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+  const track = parseTrack(formData.get("track"));
+  const rows = await q("SELECT cadence, track FROM students WHERE id = $1", [id]);
+  if (rows.length === 0) return "الطالب غير موجود";
+  const oldCadence = ((rows[0].cadence as string) || "weekly") as Cadence;
+  const oldTrack = parseTrack(rows[0].track);
+
+  if (oldTrack !== track) {
+    // مقررات المسارين مختلفة، فخطته القديمة لا تصلح للمسار الجديد
+    await replacePlanItems(id, []);
+  } else if (oldCadence !== cadence) {
+    // تغيير وحدة العرض يغيّر عدد الفترات، فتُعاد الخطة إلى الحدود الجديدة
+    const items = await listPlanItems(id);
+    const courses = await listCourses(false, track);
+    const byId = new Map(courses.map((c) => [c.id, c]));
+    const oldTotal = periodCount(oldCadence);
+    const newTotal = periodCount(cadence);
+    const rescaled: SubmittedPick[] = [];
+    for (const it of items) {
+      const course = byId.get(it.course_id);
+      if (!course) continue;
+      // الفترات التي كان يشغلها المقرر تُحوَّل بنسبتها إلى الوحدة الجديدة
+      const span = Math.max(1, sessionsNeeded(course, it.memo_per, it.expl_per));
+      const n = Math.max(1, Math.round((span / oldTotal) * newTotal));
+      rescaled.push({
+        courseId: it.course_id,
+        memoPer: course.has_memo ? Math.max(1, Math.ceil(memoTotal(course) / n)) : 0,
+        explPer: course.has_expl ? Math.max(1, Math.ceil(explTotal(course) / n)) : 0,
+        start: 0,
+      });
+    }
+    if (rescaled.length > 0) {
+      const checked = await validatePlan(rescaled, cadence, track, { requireAll: false });
+      if (typeof checked === "string") {
+        return `تعذّر تحويل الخطة إلى الوحدة الجديدة: ${checked}`;
+      }
+      await replacePlanItems(id, checked);
+    }
+  }
+
+  await q(
+    `UPDATE students SET name = $1, phone = $2, notes = $3, cadence = $4, track = $5,
+       updated_at = now()
+     WHERE id = $6`,
+    [name, phone, notes, cadence, track, id]
+  );
+  revalidatePath("/", "layout");
+  return null;
+}
+
+/** يستبدل خطة طالب قائم بما عدّله المشرف */
+export async function updatePlan(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  await requireAdmin();
+  const id = Number(formData.get("id") ?? 0);
+  if (id <= 0) return "الطالب غير موجود";
+  const rows = await q("SELECT cadence, track FROM students WHERE id = $1", [id]);
+  if (rows.length === 0) return "الطالب غير موجود";
+
+  const cadence = ((rows[0].cadence as string) || "weekly") as Cadence;
+  const track = parseTrack(rows[0].track);
+  const raw = String(formData.get("picks") ?? "[]");
+  const picks = parsePicks(raw, periodCount(cadence));
+
+  // خطة فارغة تعني حذف كل المقررات — تصرّف مقصود من المشرف
+  if (picks.length === 0) {
+    await replacePlanItems(id, []);
+    revalidatePath("/", "layout");
+    return null;
+  }
+
+  const checked = await validatePlan(picks, cadence, track, { requireAll: false });
+  if (typeof checked === "string") return checked;
+
+  await replacePlanItems(id, checked);
+  revalidatePath("/", "layout");
+  return null;
 }
 
 /* ————— إدارة المقررات (اللوحة) ————— */
@@ -156,14 +359,15 @@ export async function saveCourse(formData: FormData): Promise<void> {
     text("sharh_name"),
     url("sharh_book_url"),
     url("sharh_video_url"),
+    parseTrack(formData.get("track")),
   ];
 
   if (id > 0) {
     await q(
       `UPDATE courses SET name = $1, subject = $2, unit = $3, memo_total = $4, expl_total = $5,
          expl_label = $6, has_memo = $7, has_expl = $8,
-         sharh_name = $9, sharh_book_url = $10, sharh_video_url = $11
-       WHERE id = $12`,
+         sharh_name = $9, sharh_book_url = $10, sharh_video_url = $11, track = $12
+       WHERE id = $13`,
       [...params, id]
     );
   } else {
@@ -171,10 +375,25 @@ export async function saveCourse(formData: FormData): Promise<void> {
     await q(
       `INSERT INTO courses
          (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl,
-          sharh_name, sharh_book_url, sharh_video_url, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+          sharh_name, sharh_book_url, sharh_video_url, track, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
       [...params, Number(max?.m ?? -1) + 1]
     );
+  }
+  revalidatePath("/", "layout");
+}
+
+/** يحذف مقررًا — ويُمنع إن كان في خطة طالب حتى لا تُمسح خطط محفوظة */
+export async function deleteCourse(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const id = Number(formData.get("id") ?? 0);
+  if (id <= 0) return;
+  const used = await q("SELECT COUNT(*)::int AS n FROM plan_items WHERE course_id = $1", [id]);
+  if (Number(used[0]?.n ?? 0) > 0) {
+    // مستعمل في خطط — الإيقاف يخفيه عن الجدد ويُبقي الخطط سليمة
+    await q("UPDATE courses SET active = FALSE WHERE id = $1", [id]);
+  } else {
+    await q("DELETE FROM courses WHERE id = $1", [id]);
   }
   revalidatePath("/", "layout");
 }

@@ -20,6 +20,7 @@ const SCHEMA = `
     expl_label TEXT NOT NULL DEFAULT 'شرح',
     has_memo BOOLEAN NOT NULL DEFAULT TRUE,
     has_expl BOOLEAN NOT NULL DEFAULT TRUE,
+    track TEXT NOT NULL DEFAULT 'tarbawi',
     sort_order INTEGER NOT NULL DEFAULT 0,
     active BOOLEAN NOT NULL DEFAULT TRUE
   );
@@ -32,6 +33,7 @@ const SCHEMA = `
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_name TEXT NOT NULL DEFAULT '';
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_book_url TEXT NOT NULL DEFAULT '';
   ALTER TABLE courses ADD COLUMN IF NOT EXISTS sharh_video_url TEXT NOT NULL DEFAULT '';
+  ALTER TABLE courses ADD COLUMN IF NOT EXISTS track TEXT NOT NULL DEFAULT 'tarbawi';
   CREATE TABLE IF NOT EXISTS students (
     id SERIAL PRIMARY KEY,
     name TEXT NOT NULL,
@@ -39,6 +41,7 @@ const SCHEMA = `
     stage TEXT NOT NULL DEFAULT '',
     notes TEXT NOT NULL DEFAULT '',
     cadence TEXT NOT NULL DEFAULT 'weekly',
+    track TEXT NOT NULL DEFAULT 'tarbawi',
     token TEXT NOT NULL UNIQUE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -53,6 +56,9 @@ const SCHEMA = `
     start_session INTEGER NOT NULL DEFAULT 0
   );
   ALTER TABLE students ADD COLUMN IF NOT EXISTS cadence TEXT NOT NULL DEFAULT 'weekly';
+  ALTER TABLE students ADD COLUMN IF NOT EXISTS track TEXT NOT NULL DEFAULT 'tarbawi';
+  CREATE INDEX IF NOT EXISTS courses_track_idx ON courses (track);
+  CREATE INDEX IF NOT EXISTS students_track_idx ON students (track);
   CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
 `;
 
@@ -173,6 +179,8 @@ export type Student = {
   notes: string;
   /** وحدة التقسيم التي اختارها الطالب: daily | weekly | monthly */
   cadence: string;
+  /** مساره: tarbawi | ilmi */
+  track: string;
   token: string;
   created_at: Date;
   updated_at: Date;
