@@ -14,6 +14,7 @@ import {
   sessionsNeeded,
   UNITS,
 } from "@/lib/plan";
+import { cadenceInfo } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import { parseTrack, PUBLIC_TRACK, trackInfo, type TrackKey } from "@/lib/tracks";
 
@@ -370,6 +371,12 @@ export async function updateStudent(
   } else if (oldCadence !== cadence) {
     // تغيير وحدة العرض يغيّر عدد الفترات، فتُعاد الخطة إلى الحدود الجديدة
     const items = await listPlanItems(id);
+    // المقررات متتابعة ولكلٍّ فترة على الأقل، فلا تتّسع الوحدة لأكثر من فتراتها
+    const room = periodCount(cadence);
+    if (items.length > room) {
+      const info = cadenceInfo(cadence);
+      return `${info.label}: السنة ${room} ${info.plural} فقط، وخطته فيها ${items.length} مقررًا — والمقررات متتابعة فلكلٍّ ${info.each} على الأقل. أبقِ الوحدة كما هي أو احذف مقررات.`;
+    }
     const courses = await listCourses(false, track);
     const byId = new Map(courses.map((c) => [c.id, c]));
     const oldTotal = periodCount(oldCadence);

@@ -194,6 +194,8 @@ export default function PlanEditor({
                   <button
                     type="button"
                     className="btn btn-ghost h-9 w-9 justify-center text-lg"
+                    disabled={free <= 0}
+                    title={free <= 0 ? "السنة ممتلئة — أنقص من مقرر آخر أولًا" : undefined}
                     onClick={() => set(i, r.weeks + 1)}
                     aria-label="زد أسبوعًا"
                   >
@@ -228,8 +230,10 @@ export default function PlanEditor({
               key={c.id}
               type="button"
               className="btn btn-ghost px-2 py-1 text-xs"
+              disabled={free <= 0}
+              title={free <= 0 ? "السنة ممتلئة — أنقص من مقرر آخر أولًا" : undefined}
               onClick={() =>
-                setRows((cur) => [...cur, { courseId: c.id, weeks: Math.max(1, Math.min(free || 1, 8)) }])
+                setRows((cur) => [...cur, { courseId: c.id, weeks: Math.max(1, Math.min(free, 8)) }])
               }
             >
               + {c.name}
