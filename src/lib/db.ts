@@ -99,6 +99,7 @@ async function connect(): Promise<QueryClient> {
     if (stmt.trim()) await client.query(stmt);
   }
   await seedCourses(client);
+  await seedIlmiCourses(client);
   await seedResources(client);
   return client;
 }
@@ -115,6 +116,49 @@ const DEFAULT_COURSES: [string, string, string, number, number, string][] = [
   ["القرآن سؤال وجواب", "علوم القرآن", "صفحة", 200, 200, "قراءة"],
   ["موسوعة التاريخ الإسلامي", "التاريخ", "صفحة", 30, 750, "قراءة"],
 ];
+
+/**
+ * مقررات «نواة العلم» — الدرجة الأولى (درجة التسهيل) لمسار النخب العلمية.
+ * [الاسم، الفرع، النوع، معيار الضبط، صفحات القراءة، أسطر الحفظ]
+ * الحفظ بالأسطر والقراءة بالصفحات، ولذلك للمقرر وحدتان.
+ */
+const ILMI_COURSES: [string, string, string, string, number, number][] = [
+  ["فضل العلم", "شرف العلم", "نثر + نظم", "حفظ", 2, 20],
+  ["فضل علم السلف لابن رجب", "شرف العلم", "كتاب", "ملخص", 90, 0],
+  ["ملخص شرف أهل الحديث للخطيب البغدادي", "شرف العلم", "كتاب", "اختبار", 150, 0],
+  ["أدب الطلب", "أدب الطلب", "نثر", "حفظ", 3, 30],
+  ["تذكرة العالم والمتعلم لابن جماعة", "أدب الطلب", "كتاب", "ملخص", 115, 0],
+  ["ملخص من نيل الأمل في أدب الطلب للشوكاني", "أدب الطلب", "كتاب", "اختبار", 130, 0],
+  ["تأصيل الطلاب", "منهج الطالب", "نظم", "حفظ", 1, 20],
+  ["تعليم المتعلم للزركشي", "منهج الطالب", "كتاب", "ملخص", 110, 0],
+  ["ملخص من المدخل لابن بدران", "منهج الطالب", "كتاب", "اختبار", 110, 0],
+  ["وصايا للطالب", "موجب الطلب", "نظم", "حفظ", 2, 40],
+  ["لامية ابن الوردي", "موجب الطلب", "كتاب", "ملخص", 5, 80],
+  ["ملخص من مفتاح دار السعادة لابن القيم", "موجب الطلب", "كتاب", "اختبار", 100, 0],
+];
+
+/**
+ * تُزرع مقررات النخب العلمية مرة واحدة: إن كان المسار بلا مقرر أصلًا.
+ * فحذف مقرر أو تعديله لا يُعيده، وإنما إفراغ المسار كلّه.
+ */
+async function seedIlmiCourses(client: QueryClient): Promise<void> {
+  const rows = (await client.query("SELECT COUNT(*)::int AS n FROM courses WHERE track = 'ilmi'"))
+    .rows;
+  if (Number(rows[0]?.n ?? 0) > 0) return;
+
+  const max = (await client.query("SELECT COALESCE(MAX(sort_order), -1)::int AS m FROM courses"))
+    .rows;
+  let order = Number(max[0]?.m ?? -1) + 1;
+  for (const [name, subject, kind, mastery, read, memoLines] of ILMI_COURSES) {
+    await client.query(
+      `INSERT INTO courses
+         (name, subject, unit, memo_unit, memo_total, expl_total, expl_label,
+          has_memo, has_expl, kind, mastery, track, sort_order)
+       VALUES ($1, $2, 'صفحة', 'سطر', $3, $4, 'قراءة', $5, $6, $7, $8, 'ilmi', $9)`,
+      [name, subject, memoLines, read, memoLines > 0, read > 0, kind, mastery, order++]
+    );
+  }
+}
 
 /**
  * الشروح المعتمدة كما في ورقة «المتون»: [الشارح، رابط القرائي، رابط السماعي]
