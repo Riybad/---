@@ -106,20 +106,42 @@ async function validatePlan(
   return picks;
 }
 
-/** يستبدل بنود خطة طالب دفعةً واحدة */
+/**
+ * يستبدل بنود خطة طالب دفعةً واحدة.
+ * الإنجاز المسجّل يبقى مربوطًا بالمقرر نفسه، فتعديل المدد أو الترتيب
+ * لا يمحو ما سجّله المشرف من إنهاء المقررات.
+ */
 async function replacePlanItems(studentId: number, picks: SubmittedPick[]): Promise<void> {
+  const prev = (await q(
+    "SELECT course_id, done_at FROM plan_items WHERE student_id = $1 AND done",
+    [studentId]
+  )) as { course_id: number; done_at: Date | null }[];
+  const doneAt = new Map(prev.map((r) => [r.course_id, r.done_at]));
+
   await q("DELETE FROM plan_items WHERE student_id = $1", [studentId]);
   if (picks.length === 0) return;
   const values = picks
     .map((_, i) => {
-      const b = 2 + i * 5;
-      return `($1::int, $${b}::int, $${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int)`;
+      const b = 2 + i * 7;
+      return `($1::int, $${b}::int, $${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int, $${b + 5}::boolean, $${b + 6}::timestamptz)`;
     })
     .join(", ");
   await q(
-    `INSERT INTO plan_items (student_id, course_id, ord, memo_per, expl_per, start_session)
+    `INSERT INTO plan_items
+       (student_id, course_id, ord, memo_per, expl_per, start_session, done, done_at)
      VALUES ${values}`,
-    [studentId, ...picks.flatMap((p, i) => [p.courseId, i, p.memoPer, p.explPer, p.start])]
+    [
+      studentId,
+      ...picks.flatMap((p, i) => [
+        p.courseId,
+        i,
+        p.memoPer,
+        p.explPer,
+        p.start,
+        doneAt.has(p.courseId),
+        doneAt.get(p.courseId) ?? null,
+      ]),
+    ]
   );
 }
 
@@ -324,6 +346,74 @@ export async function updatePlan(
   await replacePlanItems(id, checked);
   revalidatePath("/", "layout");
   return null;
+}
+
+/* ————— إنجاز الطلاب: أنهى المقرر أو لا ————— */
+
+/** يقرأ أزواج «طالب:مقرر» من حقل نموذج */
+function parsePairs(values: string[]): [number, number][] {
+  const out: [number, number][] = [];
+  const seen = new Set<string>();
+  for (const v of values) {
+    const [a, b] = String(v).split(":");
+    const sid = Math.trunc(Number(a));
+    const cid = Math.trunc(Number(b));
+    if (sid > 0 && cid > 0 && !seen.has(`${sid}:${cid}`)) {
+      seen.add(`${sid}:${cid}`);
+      out.push([sid, cid]);
+    }
+  }
+  return out;
+}
+
+/**
+ * يحفظ إنجاز شاشة كاملة دفعةً واحدة.
+ * «scope» كل المربّعات المعروضة، و«done» ما أشّر عليه المشرف — فما كان
+ * في النطاق ولم يُؤشَّر يُرجَع غير منجَز. تاريخ الإنجاز يُحفظ أول مرة
+ * ولا يتغيّر ما دام المقرر منجزًا.
+ */
+export async function saveProgress(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  await requireAdmin();
+  const scope = parsePairs(String(formData.get("scope") ?? "").split(",").filter(Boolean));
+  if (scope.length === 0) return null;
+  const done = new Set(
+    parsePairs(formData.getAll("done").map(String)).map(([s, c]) => `${s}:${c}`)
+  );
+
+  const values = scope
+    .map((_, i) => `($${i * 3 + 1}::int, $${i * 3 + 2}::int, $${i * 3 + 3}::boolean)`)
+    .join(", ");
+  await q(
+    `UPDATE plan_items AS p
+        SET done = v.done,
+            done_at = CASE WHEN v.done THEN COALESCE(p.done_at, now()) ELSE NULL END
+       FROM (VALUES ${values}) AS v(sid, cid, done)
+      WHERE p.student_id = v.sid AND p.course_id = v.cid
+        AND p.done IS DISTINCT FROM v.done`,
+    scope.flatMap(([sid, cid]) => [sid, cid, done.has(`${sid}:${cid}`)])
+  );
+
+  revalidatePath("/", "layout");
+  return null;
+}
+
+/** يقلب إنجاز مقرر واحد لطالب واحد — من صفحة الطالب */
+export async function toggleItemDone(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const studentId = Number(formData.get("student_id") ?? 0);
+  const courseId = Number(formData.get("course_id") ?? 0);
+  if (studentId <= 0 || courseId <= 0) return;
+  await q(
+    `UPDATE plan_items
+        SET done = NOT done,
+            done_at = CASE WHEN done THEN NULL ELSE now() END
+      WHERE student_id = $1 AND course_id = $2`,
+    [studentId, courseId]
+  );
+  revalidatePath("/", "layout");
 }
 
 /* ————— إدارة المقررات (اللوحة) ————— */

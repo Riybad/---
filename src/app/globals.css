@@ -218,6 +218,21 @@ body {
 .table tr:last-child td {
   border-bottom: none;
 }
+/* عمود الطالب يبقى ظاهرًا أثناء سحب جدول الإنجاز عرضًا */
+.table .sticky-col {
+  position: sticky;
+  inset-inline-start: 0;
+  z-index: 1;
+  background: var(--surface-1);
+}
+.table thead .sticky-col {
+  background: var(--table-head);
+  z-index: 2;
+}
+.table tbody tr:nth-child(even) td.sticky-col {
+  background: var(--surface-stripe);
+}
+
 .num {
   font-variant-numeric: tabular-nums;
 }

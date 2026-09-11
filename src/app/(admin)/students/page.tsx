@@ -3,7 +3,7 @@ import ConfirmButton from "@/components/ConfirmButton";
 import { deleteStudent } from "@/app/plan-actions";
 import { cadenceInfo, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
-import { listStudents, planCounts } from "@/lib/queries";
+import { listStudents, progressCounts } from "@/lib/queries";
 import { isTrack, TRACKS, trackInfo, type TrackKey } from "@/lib/tracks";
 
 export const dynamic = "force-dynamic";
@@ -17,7 +17,7 @@ export default async function StudentsPage({
   const track = isTrack(rawTrack) ? (rawTrack as TrackKey) : undefined;
   const [students, counts, all] = await Promise.all([
     listStudents(search, track),
-    planCounts(),
+    progressCounts(),
     listStudents(),
   ]);
   const countIn = (key: TrackKey) => all.filter((s) => s.track === key).length;
@@ -92,6 +92,7 @@ export default async function StudentsPage({
                 <th>الجوال</th>
                 <th>الوحدة</th>
                 <th>المقررات</th>
+                <th>المنجَز</th>
                 <th>التاريخ</th>
                 <th>الخطة</th>
                 <th>إكسل</th>
@@ -117,7 +118,10 @@ export default async function StudentsPage({
                     {s.phone || "—"}
                   </td>
                   <td>{cadenceInfo((s.cadence || "weekly") as Cadence).label}</td>
-                  <td className="num">{counts.get(s.id) ?? 0}</td>
+                  <td className="num">{counts.get(s.id)?.total ?? 0}</td>
+                  <td className="whitespace-nowrap">
+                    <Done n={counts.get(s.id)?.done ?? 0} total={counts.get(s.id)?.total ?? 0} color={t.color} />
+                  </td>
                   <td className="num" dir="ltr">
                     {new Date(s.created_at).toISOString().slice(0, 10)}
                   </td>
@@ -158,6 +162,18 @@ export default async function StudentsPage({
         )}
       </div>
     </div>
+  );
+}
+
+/** «3 / 5» مع علامة لمن أنهى مقرراته كلها */
+function Done({ n, total, color }: { n: number; total: number; color: string }) {
+  if (total === 0) return <span style={{ color: "var(--text-muted)" }}>—</span>;
+  const all = n === total;
+  return (
+    <span style={{ color: all ? color : "var(--text-secondary)", fontWeight: all ? 700 : 400 }}>
+      {n} من {total}
+      {all && " ✓"}
+    </span>
   );
 }
 

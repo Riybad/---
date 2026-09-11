@@ -5,6 +5,7 @@ import { logout } from "@/app/actions";
 const NAV = [
   ["/", "الرئيسية"],
   ["/students", "الطلاب"],
+  ["/injaz", "الإنجاز"],
   ["/courses", "المقررات"],
   ["/taqweem", "الخطة الزمنية"],
 ];

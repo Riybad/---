@@ -6,7 +6,7 @@ import CopyButton from "@/components/CopyButton";
 import PlanEditor from "@/components/PlanEditor";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
 import { EditStudentForm } from "@/components/StudentForm";
-import { deleteStudent, updateStudentNotes } from "@/app/plan-actions";
+import { deleteStudent, toggleItemDone, updateStudentNotes } from "@/app/plan-actions";
 import { buildSchedule, periodsLabel } from "@/lib/plan";
 import { cadenceInfo } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
@@ -75,8 +75,11 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
 
       <div className="grid gap-3 sm:grid-cols-3">
         <Stat label="عدد المقررات" value={`${picks.length}`} />
+        <Stat
+          label="المنجَز"
+          value={items.length ? `${items.filter((i) => i.done).length} من ${items.length}` : "—"}
+        />
         <Stat label={`${info.plural} المشغولة`} value={periodsLabel(used, cadence)} />
-        <Stat label="وحدة التقسيم" value={info.label} />
       </div>
 
       {picks.length === 0 && trackCourses.length > 0 && (
@@ -113,6 +116,43 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
           picks={picks}
           cadence={cadence}
         />
+      )}
+
+      {items.length > 0 && (
+        <div className="card p-5">
+          <div className="mb-3 flex flex-wrap items-baseline gap-2">
+            <h2 className="font-bold">إنجاز المقررات</h2>
+            <span className="text-xs" style={{ color: "var(--text-muted)" }}>
+              اضغط المقرر لتسجّل أنه أنهاه أو لم ينهه
+            </span>
+            <span className="ms-auto text-sm font-bold" style={{ color: info2.color }}>
+              {items.filter((i) => i.done).length} من {items.length}
+              {items.every((i) => i.done) && " ✓ أنهى الكل"}
+            </span>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {items.map((i) => {
+              const course = allCourses.find((c) => c.id === i.course_id);
+              if (!course) return null;
+              return (
+                <form key={i.id} action={toggleItemDone}>
+                  <input type="hidden" name="student_id" value={student.id} />
+                  <input type="hidden" name="course_id" value={i.course_id} />
+                  <button
+                    className="rounded-xl border px-3 py-2 text-sm font-semibold transition"
+                    style={{
+                      borderColor: i.done ? info2.color : "var(--hairline)",
+                      background: i.done ? `${info2.color}18` : "transparent",
+                      color: i.done ? info2.color : "var(--text-secondary)",
+                    }}
+                  >
+                    {i.done ? "✓" : "○"} {course.name}
+                  </button>
+                </form>
+              );
+            })}
+          </div>
+        </div>
       )}
 
       {picks.length > 0 && (
