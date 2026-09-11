@@ -6,6 +6,8 @@ import Brand from "@/components/Brand";
 import CopyButton from "@/components/CopyButton";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
 import CourseResources, { hasSharh } from "@/components/CourseResources";
+import PlanWizard from "@/components/PlanWizard";
+import { parseTrack, trackInfo } from "@/lib/tracks";
 import type { Cadence } from "@/lib/calendar";
 import { getStudentByToken, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
@@ -30,7 +32,12 @@ export default async function StudentPlanPage({
   const student = await getStudentByToken(token);
   if (!student) notFound();
 
-  const [courses, items] = await Promise.all([listCourses(true), listPlanItems(student.id)]);
+  const track = parseTrack(student.track);
+  const [courses, trackCourses, items] = await Promise.all([
+    listCourses(true),
+    listCourses(false, track),
+    listPlanItems(student.id),
+  ]);
   const picks = toPicks(items);
   const cadence = (student.cadence || "weekly") as Cadence;
 
@@ -38,6 +45,40 @@ export default async function StudentPlanPage({
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
   const proto = h.get("x-forwarded-proto") ?? "http";
   const planUrl = `${proto}://${host}/khitta/${token}`;
+
+  // سجّله المشرف ولم يقسّم بعد: هذا الرابط هو مكان تقسيمه
+  if (picks.length === 0) {
+    return (
+      <main className="sunny sunny-bg min-h-screen p-4">
+        <div className="mx-auto w-full max-w-3xl">
+          <div className="card sunny-card mb-4 p-6 text-center">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-3 h-16 w-auto" />
+            <h1 className="page-title text-xl">خطة {student.name} السنوية</h1>
+            <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+              {trackInfo(track).name}
+            </p>
+          </div>
+          {trackCourses.length === 0 ? (
+            <div className="card sunny-card p-8 text-center">
+              <p className="text-3xl">📚</p>
+              <p className="mt-3 font-bold">لا توجد مقررات متاحة حاليًا</p>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                راجع المشرف لإضافة المقررات.
+              </p>
+            </div>
+          ) : (
+            <div className="card sunny-card p-5">
+              <PlanWizard
+                courses={trackCourses}
+                student={{ name: student.name, phone: student.phone, token }}
+              />
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
 
   return (
     <main className="sunny sunny-bg min-h-screen p-4">
@@ -111,11 +152,13 @@ export default async function StudentPlanPage({
           <PlanTable courses={courses} picks={picks} cadence={cadence} />
         </div>
 
-        <p className="text-center text-sm">
-          <Link href="/khitta" className="underline" style={{ color: "var(--brand-olive)" }}>
-            تسجيل خطة طالب آخر
-          </Link>
-        </p>
+        {trackInfo(track).publicSignup && (
+          <p className="text-center text-sm">
+            <Link href="/khitta" className="underline" style={{ color: "var(--brand-olive)" }}>
+              تسجيل خطة طالب آخر
+            </Link>
+          </p>
+        )}
       </div>
     </main>
   );

@@ -11,6 +11,7 @@ import {
   type Course,
   type Pick,
 } from "./plan";
+import { trackInfo } from "./tracks";
 import type { Student } from "./db";
 
 type Sheet = XLSX.WorkSheet;
@@ -79,6 +80,7 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
 
   const head: (string | number)[][] = [
     ["الطالب", student.name],
+    ["المسار", trackInfo(student.track).name],
     ["الجوال", student.phone || "—"],
     ["ملاحظات", student.notes || "—"],
     ["وحدة التقسيم", info.label],
@@ -142,6 +144,7 @@ export function allStudentsWorkbook(
     [
       "م",
       "الطالب",
+      "المسار",
       "الجوال",
       "وحدة التقسيم",
       "عدد المقررات",
@@ -153,6 +156,7 @@ export function allStudentsWorkbook(
   const detail: (string | number)[][] = [
     [
       "الطالب",
+      "المسار",
       "وحدة التقسيم",
       "رقم الفترة",
       "التاريخ الهجري",
@@ -173,6 +177,7 @@ export function allStudentsWorkbook(
     summary.push([
       i + 1,
       student.name,
+      trackInfo(student.track).name,
       student.phone || "—",
       info.label,
       picks.length,
@@ -184,6 +189,7 @@ export function allStudentsWorkbook(
       for (const p of r.portions) {
         detail.push([
           student.name,
+          trackInfo(student.track).name,
           info.label,
           r.no,
           r.period.hijri,
@@ -202,6 +208,7 @@ export function allStudentsWorkbook(
   const coursesSheet: (string | number)[][] = [
     [
       "المقرر",
+      "المسار",
       "الفن",
       "الوحدة",
       "حجم الحفظ",
@@ -213,6 +220,7 @@ export function allStudentsWorkbook(
   for (const c of courses) {
     coursesSheet.push([
       c.name,
+      trackInfo(c.track).name,
       c.subject,
       c.unit,
       memoTotal(c) || "—",
@@ -222,15 +230,15 @@ export function allStudentsWorkbook(
     ]);
   }
 
-  XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 14, 14, 12, 16, 14, 30]), "الطلاب");
+  XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 18, 14, 14, 12, 16, 14, 30]), "الطلاب");
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(detail, [24, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),
+    sheet(detail, [24, 18, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),
     "تفاصيل الخطط"
   );
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(coursesSheet, [26, 14, 10, 12, 14, 10, 12]),
+    sheet(coursesSheet, [26, 18, 14, 10, 12, 14, 10, 12]),
     "المقررات"
   );
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");

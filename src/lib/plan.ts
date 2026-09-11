@@ -21,6 +21,8 @@ export type Course = {
   sharh_video_url: string;
   has_memo: boolean;
   has_expl: boolean;
+  /** المسار الذي ينتمي له المقرر: tarbawi | ilmi */
+  track: string;
   sort_order: number;
   active: boolean;
 };
@@ -227,6 +229,60 @@ export function approxMonths(weeks: number): string {
 export function rateFor(total: number, weeks: number, cadence: Cadence): number {
   if (total <= 0) return 0;
   return Math.max(1, Math.ceil(total / periodsForWeeks(weeks, cadence)));
+}
+
+/**
+ * توزيع افتراضي لمدد المقررات على السنة بالتناسب مع أحجامها — لا بالتساوي،
+ * فالتاريخ (750 صفحة) لا يساوي متنًا من 154 بيتًا. ثم يُضيَّق التوزيع حتى
+ * تنتهي المقررات كلها قبل آخر فترة في السنة.
+ */
+export function defaultWeeks(courses: Course[], cadence: Cadence): number[] {
+  if (courses.length === 0) return [];
+  const weight = (c: Course) => Math.max(memoTotal(c), explTotal(c), 1);
+  const sum = courses.reduce((a, c) => a + weight(c), 0) || 1;
+  const weeks = courses.map((c) => Math.max(1, Math.floor((YEAR_WEEKS * weight(c)) / sum)));
+
+  // ما بقي من أسابيع السنة يُعطى للأكبر أولًا
+  const bySize = courses.map((_, i) => i).sort((a, b) => weight(courses[b]) - weight(courses[a]));
+  let rest = YEAR_WEEKS - weeks.reduce((a, n) => a + n, 0);
+  for (let k = 0; rest > 0 && k < bySize.length * YEAR_WEEKS; k++) {
+    weeks[bySize[k % bySize.length]]++;
+    rest--;
+  }
+
+  // التقريب في rateFor قد يجعل المجموع يتجاوز السنة، فيُقلَّص من الأطول
+  const total = periodCount(cadence);
+  const spanOfWeeks = (i: number) =>
+    sessionsNeeded(
+      courses[i],
+      rateFor(memoTotal(courses[i]), weeks[i], cadence),
+      rateFor(explTotal(courses[i]), weeks[i], cadence)
+    );
+  for (let guard = 0; guard < YEAR_WEEKS * courses.length; guard++) {
+    const spans = courses.map((_, i) => spanOfWeeks(i));
+    if (spans.reduce((a, n) => a + n, 0) <= total) break;
+    let longest = 0;
+    for (let i = 1; i < weeks.length; i++) if (weeks[i] > weeks[longest]) longest = i;
+    if (weeks[longest] <= 1) break;
+    weeks[longest]--;
+  }
+  return weeks;
+}
+
+/** يبني بنود خطة متتابعة من مدد بالأسابيع */
+export function picksFromWeeks(courses: Course[], weeks: number[], cadence: Cadence): Pick[] {
+  let start = 0;
+  return courses.map((course, i) => {
+    const w = Math.max(1, weeks[i] ?? 1);
+    const pick: Pick = {
+      courseId: course.id,
+      memoPer: rateFor(memoTotal(course), w, cadence),
+      explPer: rateFor(explTotal(course), w, cadence),
+      start,
+    };
+    start += sessionsNeeded(course, pick.memoPer, pick.explPer);
+    return pick;
+  });
 }
 
 export { cadenceInfo };

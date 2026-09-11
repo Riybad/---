@@ -1,7 +1,9 @@
-import { saveCourse, toggleCourse } from "@/app/plan-actions";
+import Link from "next/link";
+import { deleteCourse, saveCourse, toggleCourse } from "@/app/plan-actions";
 import { explTotal, memoTotal, UNITS, unitLabel } from "@/lib/plan";
 import { listCourses } from "@/lib/queries";
 import type { Course } from "@/lib/plan";
+import { TRACKS, type Track, type TrackKey } from "@/lib/tracks";
 import ConfirmButton from "@/components/ConfirmButton";
 import CourseResources from "@/components/CourseResources";
 
@@ -10,33 +12,73 @@ export const dynamic = "force-dynamic";
 export default async function CoursesPage() {
   const courses = await listCourses(true);
   return (
-    <div className="grid gap-5">
+    <div className="grid gap-6">
       <div>
         <h1 className="page-title text-xl">المقررات</h1>
         <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-          لكل مقرر مساران بحجمين مستقلين: <strong>الحفظ</strong> و<strong>الشرح أو القراءة</strong>
-          {" "}— مثل التاريخ: حفظ 30 صفحة وقراءة 750. اجعل الحجم <strong>صفرًا</strong> لإلغاء
-          المسار. هذه الأحجام هي أساس التقسيم عند الطالب.
+          لكل مسار مقرراته الخاصة، وخطة الطالب لا تُبنى إلا من مقررات مساره. ولكل مقرر مساران
+          بحجمين مستقلين: <strong>الحفظ</strong> و<strong>الشرح أو القراءة</strong> — مثل التاريخ:
+          حفظ 30 صفحة وقراءة 750. اجعل الحجم <strong>صفرًا</strong> لإلغاء المسار.
         </p>
       </div>
 
-      <div className="grid gap-3">
-        {courses.map((c) => (
-          <CourseRow key={c.id} course={c} />
-        ))}
-      </div>
-
-      <div className="card p-5">
-        <h2 className="mb-3 font-bold">إضافة مقرر</h2>
-        <CourseForm />
-      </div>
+      {TRACKS.map((track) => (
+        <TrackSection
+          key={track.key}
+          track={track}
+          courses={courses.filter((c) => c.track === track.key)}
+        />
+      ))}
     </div>
   );
 }
 
-function CourseRow({ course }: { course: Course }) {
+function TrackSection({ track, courses }: { track: Track; courses: Course[] }) {
   return (
-    <div className="card p-4" style={{ opacity: course.active ? 1 : 0.55 }}>
+    <section className="grid gap-3">
+      <div
+        className="flex flex-wrap items-baseline gap-2 border-b pb-2"
+        style={{ borderColor: `${track.color}55` }}
+      >
+        <h2 className="text-lg font-bold" style={{ color: track.color }}>
+          {track.name}
+        </h2>
+        <span className="text-xs num" style={{ color: "var(--text-muted)" }}>
+          {courses.length} مقرر
+        </span>
+        <span className="ms-auto text-xs" style={{ color: "var(--text-muted)" }}>
+          {track.note}
+        </span>
+      </div>
+
+      {courses.length === 0 ? (
+        <p className="card p-5 text-sm" style={{ color: "var(--text-muted)" }}>
+          لا مقررات في هذا المسار بعد — أضف أول مقرر من النموذج بالأسفل، ثم{" "}
+          <Link href="/students/new" className="font-semibold underline">
+            أضف طلابه
+          </Link>
+          .
+        </p>
+      ) : (
+        courses.map((c) => <CourseRow key={c.id} course={c} track={track} />)
+      )}
+
+      <details className="card p-5">
+        <summary className="cursor-pointer font-bold">إضافة مقرر إلى {track.name}</summary>
+        <div className="mt-4">
+          <CourseForm track={track.key} />
+        </div>
+      </details>
+    </section>
+  );
+}
+
+function CourseRow({ course, track }: { course: Course; track: Track }) {
+  return (
+    <div
+      className="card p-4"
+      style={{ opacity: course.active ? 1 : 0.55, borderInlineStart: `3px solid ${track.color}` }}
+    >
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <span className="font-bold">{course.name}</span>
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
@@ -49,29 +91,47 @@ function CourseRow({ course }: { course: Course }) {
             .join(" · ")}
         </span>
         {!course.active && <span className="badge badge-warning">موقوف</span>}
-        <form action={toggleCourse} className="ms-auto">
-          <input type="hidden" name="id" value={course.id} />
-          {course.active ? (
+        <div className="ms-auto flex gap-2">
+          <form action={toggleCourse}>
+            <input type="hidden" name="id" value={course.id} />
+            {course.active ? (
+              <ConfirmButton
+                message={`سيُخفى «${course.name}» عن الطلاب الجدد.\n\nالخطط المحفوظة لا تتأثر. متابعة؟`}
+                className="btn btn-ghost text-xs"
+              >
+                إيقاف
+              </ConfirmButton>
+            ) : (
+              <button className="btn btn-ghost text-xs">تفعيل</button>
+            )}
+          </form>
+          <form action={deleteCourse}>
+            <input type="hidden" name="id" value={course.id} />
             <ConfirmButton
-              message={`سيُخفى «${course.name}» عن الطلاب الجدد.\n\nالخطط المحفوظة لا تتأثر. متابعة؟`}
+              message={`سيُحذف «${course.name}» نهائيًا.\n\nوإن كان في خطة طالب فسيُوقَف بدل الحذف حتى لا تُمسح خططهم.\n\nمتابعة؟`}
               className="btn btn-ghost text-xs"
             >
-              إيقاف
+              حذف
             </ConfirmButton>
-          ) : (
-            <button className="btn btn-ghost text-xs">تفعيل</button>
-          )}
-        </form>
+          </form>
+        </div>
       </div>
       <div className="mb-3">
         <CourseResources course={course} />
       </div>
-      <CourseForm course={course} />
+      <details>
+        <summary className="cursor-pointer text-sm font-semibold" style={{ color: "var(--accent)" }}>
+          تعديل المقرر
+        </summary>
+        <div className="mt-3">
+          <CourseForm course={course} track={(course.track as TrackKey) ?? track.key} />
+        </div>
+      </details>
     </div>
   );
 }
 
-function CourseForm({ course }: { course?: Course }) {
+function CourseForm({ course, track }: { course?: Course; track: TrackKey }) {
   return (
     <form action={saveCourse} className="grid gap-3 sm:grid-cols-6 sm:items-end">
       {course && <input type="hidden" name="id" value={course.id} />}
@@ -87,6 +147,16 @@ function CourseForm({ course }: { course?: Course }) {
           placeholder="الفقه، اللغة…"
           defaultValue={course?.subject ?? ""}
         />
+      </div>
+      <div>
+        <label className="label">المسار</label>
+        <select name="track" className="input" defaultValue={track}>
+          {TRACKS.map((t) => (
+            <option key={t.key} value={t.key}>
+              {t.name}
+            </option>
+          ))}
+        </select>
       </div>
       <div>
         <label className="label">الوحدة</label>
@@ -109,7 +179,7 @@ function CourseForm({ course }: { course?: Course }) {
           required
         />
       </div>
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-2 sm:col-span-2">
         <div>
           <label className="label">المسار الثاني</label>
           <select name="expl_label" className="input" defaultValue={course?.expl_label ?? "شرح"}>
@@ -131,7 +201,7 @@ function CourseForm({ course }: { course?: Course }) {
       </div>
       <div className="sm:col-span-6 mt-1 grid gap-3 rounded-lg border p-3" style={{ borderColor: "var(--hairline)" }}>
         <div className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
-          الشرح المعتمد — يراه الطالب بعد رفع خطته وفي ملف الإكسل
+          الشرح المعتمد — يراه الطالب في صفحة خطته بعد حفظها
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <div>

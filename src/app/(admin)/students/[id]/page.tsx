@@ -3,11 +3,14 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import ConfirmButton from "@/components/ConfirmButton";
 import CopyButton from "@/components/CopyButton";
+import PlanEditor from "@/components/PlanEditor";
 import PlanTable, { CourseSummary } from "@/components/PlanTable";
+import { EditStudentForm } from "@/components/StudentForm";
 import { deleteStudent, updateStudentNotes } from "@/app/plan-actions";
 import { buildSchedule, periodsLabel } from "@/lib/plan";
 import { cadenceInfo } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
+import { parseTrack, trackInfo } from "@/lib/tracks";
 import { getStudent, listCourses, listPlanItems, toPicks } from "@/lib/queries";
 
 export const dynamic = "force-dynamic";
@@ -17,11 +20,18 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
   const student = await getStudent(Number(id));
   if (!student) notFound();
 
-  const [courses, items] = await Promise.all([listCourses(true), listPlanItems(student.id)]);
+  const track = parseTrack(student.track);
+  const info2 = trackInfo(track);
+  // الجدول يُحلّ من كل المقررات (قد تكون خطته فيها مقرر أُوقف)، والمحرّر من مقررات مساره
+  const [allCourses, trackCourses, items] = await Promise.all([
+    listCourses(true),
+    listCourses(false, track),
+    listPlanItems(student.id),
+  ]);
   const picks = toPicks(items);
   const cadence = (student.cadence || "weekly") as Cadence;
   const info = cadenceInfo(cadence);
-  const used = buildSchedule(courses, picks, cadence).filter((r) => r.portions.length > 0).length;
+  const used = buildSchedule(allCourses, picks, cadence).filter((r) => r.portions.length > 0).length;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
@@ -33,8 +43,14 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
       <div className="flex flex-wrap items-center gap-3">
         <div>
           <h1 className="page-title text-xl">{student.name}</h1>
-          <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            {[student.stage, student.phone].filter(Boolean).join(" · ") || "بدون بيانات إضافية"}
+          <p className="flex flex-wrap items-center gap-2 text-sm" style={{ color: "var(--text-muted)" }}>
+            <span
+              className="rounded-md px-2 py-0.5 text-xs font-bold"
+              style={{ background: `${info2.color}1f`, color: info2.color }}
+            >
+              {info2.name}
+            </span>
+            {[student.stage, student.phone].filter(Boolean).join(" · ")}
           </p>
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
@@ -47,7 +63,10 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
           >
             جدول تفصيلي
           </a>
-          <CopyButton text={planUrl} label="نسخ رابط خطته" />
+          <CopyButton
+            text={planUrl}
+            label={picks.length === 0 ? "نسخ رابط تقسيمه" : "نسخ رابط خطته"}
+          />
           <Link className="btn btn-ghost text-sm" href="/students">
             رجوع
           </Link>
@@ -60,16 +79,52 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         <Stat label="وحدة التقسيم" value={info.label} />
       </div>
 
+      {picks.length === 0 && trackCourses.length > 0 && (
+        <div className="card p-5" style={{ borderInlineStart: `3px solid ${info2.color}` }}>
+          <h2 className="font-bold">لا خطة له بعد</h2>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
+            إمّا أن تقسّم له من <strong>«تعديل الخطة»</strong> بالأسفل، وإمّا أن ترسل له هذا
+            الرابط ليقسّم بنفسه ثم تراجع خطته هنا:
+          </p>
+          <p
+            className="mt-2 break-all rounded-lg px-3 py-2 text-sm num"
+            style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}
+          >
+            {planUrl}
+          </p>
+        </div>
+      )}
+
+      <EditStudentForm student={student} />
+
+      {trackCourses.length === 0 ? (
+        <p className="card p-5 text-sm" style={{ color: "var(--text-secondary)" }}>
+          لا مقررات في {info2.name} بعد — أضفها من{" "}
+          <Link href="/courses" className="font-semibold underline">
+            صفحة المقررات
+          </Link>{" "}
+          لتقسّم له خطته.
+        </p>
+      ) : (
+        <PlanEditor
+          key={`${student.id}-${cadence}-${track}-${picks.length}`}
+          studentId={student.id}
+          courses={trackCourses}
+          picks={picks}
+          cadence={cadence}
+        />
+      )}
+
       {picks.length > 0 && (
         <div className="card p-5">
           <h2 className="mb-3 font-bold">مقررات الخطة</h2>
-          <CourseSummary courses={courses} picks={picks} cadence={cadence} />
+          <CourseSummary courses={allCourses} picks={picks} cadence={cadence} />
         </div>
       )}
 
       <div className="card">
         <h2 className="p-4 pb-0 font-bold">جدول الخطة</h2>
-        <PlanTable courses={courses} picks={picks} cadence={cadence} />
+        <PlanTable courses={allCourses} picks={picks} cadence={cadence} />
       </div>
 
       <form action={updateStudentNotes} className="card grid gap-3 p-5">

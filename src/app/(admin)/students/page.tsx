@@ -4,16 +4,25 @@ import { deleteStudent } from "@/app/plan-actions";
 import { cadenceInfo, YEAR_END, YEAR_START } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
 import { listStudents, planCounts } from "@/lib/queries";
+import { isTrack, TRACKS, trackInfo, type TrackKey } from "@/lib/tracks";
 
 export const dynamic = "force-dynamic";
 
 export default async function StudentsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string }>;
+  searchParams: Promise<{ q?: string; track?: string }>;
 }) {
-  const { q: search } = await searchParams;
-  const [students, counts] = await Promise.all([listStudents(search), planCounts()]);
+  const { q: search, track: rawTrack } = await searchParams;
+  const track = isTrack(rawTrack) ? (rawTrack as TrackKey) : undefined;
+  const [students, counts, all] = await Promise.all([
+    listStudents(search, track),
+    planCounts(),
+    listStudents(),
+  ]);
+  const countIn = (key: TrackKey) => all.filter((s) => s.track === key).length;
+  const href = (t?: TrackKey) =>
+    `/students?${new URLSearchParams({ ...(search ? { q: search } : {}), ...(t ? { track: t } : {}) })}`;
 
   return (
     <div className="grid gap-5">
@@ -22,19 +31,36 @@ export default async function StudentsPage({
           <h1 className="page-title text-xl">الطلاب وخططهم</h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
             السنة من {YEAR_START.hijri} إلى {YEAR_END.hijri} · {students.length} طالبًا
+            {track ? ` في ${trackInfo(track).name}` : ""}
           </p>
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
-          <a className="btn btn-primary text-sm" href="/api/export/khitta">
+          <Link className="btn btn-primary text-sm" href="/students/new">
+            + إضافة طالب
+          </Link>
+          <a className="btn btn-ghost text-sm" href="/api/export/khitta">
             تصدير كل الخطط
           </a>
-          <Link className="btn btn-ghost text-sm" href="/khitta" target="_blank">
-            رابط التسجيل ↗
-          </Link>
         </div>
       </div>
 
+      {/* تبويب المسارين */}
+      <div className="flex flex-wrap gap-2">
+        <Tab href={href()} active={!track} label="الكل" count={all.length} color="var(--text-secondary)" />
+        {TRACKS.map((t) => (
+          <Tab
+            key={t.key}
+            href={href(t.key)}
+            active={track === t.key}
+            label={t.name}
+            count={countIn(t.key)}
+            color={t.color}
+          />
+        ))}
+      </div>
+
       <form className="card flex flex-wrap gap-2 p-3">
+        {track && <input type="hidden" name="track" value={track} />}
         <input
           name="q"
           defaultValue={search ?? ""}
@@ -43,7 +69,7 @@ export default async function StudentsPage({
         />
         <button className="btn btn-ghost text-sm">بحث</button>
         {search && (
-          <Link href="/students" className="btn btn-ghost text-sm">
+          <Link href={href(track)} className="btn btn-ghost text-sm">
             مسح
           </Link>
         )}
@@ -53,7 +79,7 @@ export default async function StudentsPage({
       <div className="card">
         {students.length === 0 ? (
           <p className="p-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
-            {search ? "لا نتائج للبحث." : "لم يسجّل أي طالب خطته بعد — أرسل لهم رابط التسجيل."}
+            {search ? "لا نتائج للبحث." : "لا طلاب هنا بعد — أضف طالبًا أو أرسل رابط التسجيل."}
           </p>
         ) : (
           <div className="overflow-x-auto">
@@ -62,6 +88,7 @@ export default async function StudentsPage({
               <tr>
                 <th className="w-12">م</th>
                 <th>الاسم</th>
+                <th>المسار</th>
                 <th>الجوال</th>
                 <th>الوحدة</th>
                 <th>المقررات</th>
@@ -72,10 +99,20 @@ export default async function StudentsPage({
               </tr>
             </thead>
             <tbody>
-              {students.map((s, i) => (
+              {students.map((s, i) => {
+                const t = trackInfo(s.track);
+                return (
                 <tr key={s.id}>
                   <td className="num">{i + 1}</td>
                   <td className="font-semibold">{s.name}</td>
+                  <td>
+                    <span
+                      className="whitespace-nowrap rounded-md px-2 py-0.5 text-xs font-bold"
+                      style={{ background: `${t.color}1f`, color: t.color }}
+                    >
+                      {t.name}
+                    </span>
+                  </td>
                   <td className="num" dir="ltr">
                     {s.phone || "—"}
                   </td>
@@ -90,7 +127,7 @@ export default async function StudentsPage({
                       className="font-semibold underline"
                       style={{ color: "var(--brand-olive)" }}
                     >
-                      عرض
+                      عرض وتعديل
                     </Link>
                   </td>
                   <td className="whitespace-nowrap">
@@ -113,12 +150,41 @@ export default async function StudentsPage({
                     </form>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
           </div>
         )}
       </div>
     </div>
+  );
+}
+
+function Tab({
+  href,
+  active,
+  label,
+  count,
+  color,
+}: {
+  href: string;
+  active: boolean;
+  label: string;
+  count: number;
+  color: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-xl border px-4 py-2 text-sm font-bold transition"
+      style={{
+        borderColor: active ? color : "var(--hairline)",
+        background: active ? `${color}1a` : "transparent",
+        color: active ? color : "var(--text-secondary)",
+      }}
+    >
+      {label} <span className="num">({count})</span>
+    </Link>
   );
 }

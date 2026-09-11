@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import PlanWizard from "@/components/PlanWizard";
 import { listCourses } from "@/lib/queries";
+import { PUBLIC_TRACK, trackInfo } from "@/lib/tracks";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,9 @@ export const metadata: Metadata = {
 };
 
 export default async function KhittaPage() {
-  const courses = await listCourses();
+  // الرابط العام يخدم مسارًا واحدًا؛ ومسار النخب العلمية يُدار من اللوحة
+  const track = trackInfo(PUBLIC_TRACK);
+  const courses = await listCourses(false, PUBLIC_TRACK);
 
   return (
     <main className="sunny sunny-bg min-h-screen p-4">
@@ -24,6 +27,9 @@ export default async function KhittaPage() {
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src="/logo-nabgh.png" alt="شعار نبغ" className="mx-auto mb-3 h-16 w-auto" />
           <h1 className="page-title text-xl">خطتي السنوية</h1>
+          <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+            {track.name}
+          </p>
         </div>
 
         {courses.length === 0 ? (
