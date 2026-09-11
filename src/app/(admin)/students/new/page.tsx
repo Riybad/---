@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { NewStudentForm } from "@/components/StudentForm";
+import { BulkStudentForm, NewStudentForm } from "@/components/StudentForm";
 import { listCourses } from "@/lib/queries";
 import { isTrack, TRACKS } from "@/lib/tracks";
 import type { TrackKey } from "@/lib/tracks";
@@ -26,7 +26,7 @@ export default async function NewStudentPage({
         <div>
           <h1 className="page-title text-xl">إضافة طالب</h1>
           <p className="text-sm" style={{ color: "var(--text-muted)" }}>
-            اختر مساره واكتب بياناته، ثم قسّم له خطته أو اتركها لتقسّمها لاحقًا.
+            اكتب بيانات طالب واحد، أو ألصق قائمة أسماء دفعةً واحدة.
           </p>
         </div>
         <Link className="btn btn-ghost ms-auto text-sm" href="/students">
@@ -61,6 +61,8 @@ export default async function NewStudentPage({
       )}
 
       <NewStudentForm defaultTrack={defaultTrack} />
+
+      <BulkStudentForm defaultTrack={defaultTrack} />
     </div>
   );
 }

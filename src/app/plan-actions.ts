@@ -253,6 +253,96 @@ export async function createStudent(
   redirect(`/students/${rows[0].id}`);
 }
 
+/** نتيجة إضافة دفعة أسماء */
+export type BulkResult = {
+  error?: string;
+  added?: number;
+  /** أسماء كانت مسجّلة في المسار فلم تُكرَّر */
+  skipped?: string[];
+} | null;
+
+/** ينظّف سطرًا ملصوقًا: يزيل الترقيم والمسافات والجدولة الزائدة */
+function cleanName(line: string): string {
+  return line
+    .replace(/^[\s\u200f\u200e]*(?:[-–—•*]|\d+[.)\-،]?)\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * يضيف قائمة أسماء دفعةً واحدة إلى مسار.
+ * الاسم المسجَّل في المسار نفسه يُتخطّى، فإعادة اللصق لا تكرّر أحدًا.
+ */
+export async function createStudents(_prev: BulkResult, formData: FormData): Promise<BulkResult> {
+  await requireAdmin();
+  const track = parseTrack(formData.get("track"));
+  const cadence = parseCadence(String(formData.get("cadence") ?? "weekly"));
+
+  const lines = String(formData.get("names") ?? "")
+    .split(/\r?\n/)
+    .map(cleanName)
+    .filter(Boolean);
+  if (lines.length === 0) return { error: "الصق الأسماء أولًا — اسمًا في كل سطر" };
+
+  const short = lines.find((n) => n.length < 3);
+  if (short) return { error: `«${short}» اسم قصير — اكتبه كاملًا` };
+
+  // تكرار داخل اللصقة نفسها، ثم تكرار مع المسجّلين في المسار
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const n of lines) {
+    if (seen.has(n)) continue;
+    seen.add(n);
+    unique.push(n);
+  }
+  const existing = new Set(
+    ((await q("SELECT name FROM students WHERE track = $1", [track])) as { name: string }[]).map(
+      (r) => r.name
+    )
+  );
+  const skipped = unique.filter((n) => existing.has(n));
+  const fresh = unique.filter((n) => !existing.has(n));
+  if (fresh.length === 0) {
+    return { added: 0, skipped, error: "كل الأسماء مسجّلة في هذا المسار من قبل" };
+  }
+
+  // رمز خاص لكل طالب — هو رابط خطته
+  const values = fresh
+    .map((_, i) => `($${i * 4 + 1}::text, $${i * 4 + 2}::text, $${i * 4 + 3}::text, $${i * 4 + 4}::text)`)
+    .join(", ");
+  const inserted = (await q(
+    `INSERT INTO students (name, cadence, track, token)
+     VALUES ${values} RETURNING id`,
+    fresh.flatMap((name) => [name, cadence, track, newPlanToken()])
+  )) as { id: number }[];
+
+  // «قسّم لهم الآن»: التوزيع نفسه للجميع، يعدّله المشرف لكل طالب بعدها
+  if (String(formData.get("mode") ?? "") === "plan") {
+    const courses = await listCourses(false, track);
+    const picks = picksFromWeeks(courses, defaultWeeks(courses, cadence), cadence);
+    if (picks.length > 0) {
+      const rows = inserted.flatMap((st) =>
+        picks.map((p, i) => [st.id, p.courseId, i, p.memoPer, p.explPer, p.start])
+      );
+      const planValues = rows
+        .map((_, i) => {
+          const b = i * 6;
+          return `($${b + 1}::int, $${b + 2}::int, $${b + 3}::int, $${b + 4}::int, $${b + 5}::int, $${b + 6}::int)`;
+        })
+        .join(", ");
+      await q(
+        `INSERT INTO plan_items
+           (student_id, course_id, ord, memo_per, expl_per, start_session)
+         VALUES ${planValues}`,
+        rows.flat()
+      );
+    }
+  }
+
+  revalidatePath("/", "layout");
+  return { added: fresh.length, skipped };
+}
+
 /** يعدّل بيانات الطالب: الاسم والجوال والمسار ووحدة العرض والملاحظات */
 export async function updateStudent(
   _prev: string | null,
