@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useState } from "react";
-import { createStudent, updateStudent } from "@/app/plan-actions";
+import { createStudent, createStudents, updateStudent } from "@/app/plan-actions";
 import { CADENCES } from "@/lib/calendar";
 import { TRACKS, type TrackKey } from "@/lib/tracks";
 import type { Student } from "@/lib/db";
@@ -225,5 +226,121 @@ function Footer({
         </span>
       )}
     </div>
+  );
+}
+
+/** إضافة قائمة أسماء دفعةً واحدة — لصق من ملف أو رسالة */
+export function BulkStudentForm({ defaultTrack = "tarbawi" }: { defaultTrack?: TrackKey }) {
+  const [result, action, pending] = useActionState(createStudents, null);
+  const [track, setTrack] = useState<TrackKey>(defaultTrack);
+  const [names, setNames] = useState("");
+  const [mode, setMode] = useState<"empty" | "plan">("empty");
+
+  const count = names.split(/\r?\n/).filter((l) => l.trim().length > 0).length;
+  const info = TRACKS.find((t) => t.key === track) ?? TRACKS[0];
+
+  return (
+    <form action={action} className="card grid gap-4 p-5">
+      <input type="hidden" name="track" value={track} />
+      <input type="hidden" name="mode" value={mode} />
+      <input type="hidden" name="cadence" value="weekly" />
+
+      <div>
+        <h2 className="font-bold">أو ألصق قائمة أسماء</h2>
+        <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+          اسمًا في كل سطر. الاسم المسجّل في المسار من قبل يُتخطّى، فلا يتكرّر أحد لو أعدت اللصق.
+        </p>
+      </div>
+
+      <Fieldset legend="المسار">
+        <div className="flex flex-wrap gap-2">
+          {TRACKS.map((t) => (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => setTrack(t.key)}
+              className="rounded-xl border px-4 py-2 text-sm font-bold transition"
+              style={{
+                borderColor: track === t.key ? t.color : "var(--hairline)",
+                background: track === t.key ? `${t.color}1a` : "transparent",
+                color: track === t.key ? t.color : "var(--text-secondary)",
+              }}
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+        <p className="mt-2 text-xs" style={{ color: "var(--text-muted)" }}>
+          {info.note}
+        </p>
+      </Fieldset>
+
+      <div>
+        <label className="label">
+          الأسماء
+          {count > 0 && (
+            <span className="ms-2 font-normal" style={{ color: "var(--brand-olive)" }}>
+              — {count} {count === 1 ? "اسم" : count === 2 ? "اسمان" : count <= 10 ? "أسماء" : "اسمًا"}
+            </span>
+          )}
+        </label>
+        <textarea
+          name="names"
+          className="input"
+          rows={10}
+          value={names}
+          onChange={(e) => setNames(e.target.value)}
+          placeholder={"عبدالله التويم\nأسامه السحيباني\nعبدالملك القحطاني"}
+        />
+      </div>
+
+      <Fieldset legend="خططهم">
+        <div className="grid gap-2">
+          <Choice
+            checked={mode === "empty"}
+            onSelect={() => setMode("empty")}
+            title="بلا خطة الآن"
+            note="يُسجَّلون فقط، ثم تقسّم لكلٍّ خطته أو ترسل له رابطه ليقسّم بنفسه."
+          />
+          <Choice
+            checked={mode === "plan"}
+            onSelect={() => setMode("plan")}
+            title="قسّم لهم توزيعًا مبدئيًا"
+            note="التوزيع نفسه للجميع على مقررات المسار، تعدّله لكل طالب من صفحته."
+          />
+        </div>
+      </Fieldset>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <button className="btn btn-primary text-sm" disabled={pending || count === 0}>
+          {pending ? "جارٍ الإضافة…" : `أضف ${count > 0 ? `${count} ` : ""}إلى ${info.name}`}
+        </button>
+        {result?.error && (
+          <span className="text-sm font-semibold" style={{ color: "var(--critical)" }}>
+            {result.error}
+          </span>
+        )}
+        {!result?.error && result?.added ? (
+          <span className="text-sm font-semibold" style={{ color: "var(--good-text)" }}>
+            ✓ أُضيف {result.added} طالبًا
+          </span>
+        ) : null}
+      </div>
+
+      {result?.skipped && result.skipped.length > 0 && (
+        <p className="text-xs" style={{ color: "var(--text-muted)" }}>
+          مسجّلون من قبل فتُخطّوا: {result.skipped.join("، ")}
+        </p>
+      )}
+
+      {!result?.error && result?.added ? (
+        <Link
+          href={`/students?track=${track}`}
+          className="btn btn-ghost w-fit text-sm"
+        >
+          افتح قائمة {info.name} ←
+        </Link>
+      ) : null}
+    </form>
   );
 }
