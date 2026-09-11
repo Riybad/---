@@ -527,10 +527,13 @@ export async function saveCourse(formData: FormData): Promise<void> {
   const text = (key: string) => String(formData.get(key) ?? "").trim();
   // الروابط تُقبل http/https فقط، وما عداه يُهمل
   const url = (key: string) => (/^https?:\/\//i.test(text(key)) ? text(key) : "");
+  const memoUnitValue = String(formData.get("memo_unit") ?? "");
   const params = [
     name,
     text("subject"),
     UNITS.includes(unit) ? unit : "صفحة",
+    // فارغة تعني أن الحفظ بوحدة المقرر نفسها
+    UNITS.includes(memoUnitValue) && memoUnitValue !== unit ? memoUnitValue : "",
     memoTotalValue,
     explTotalValue,
     EXPL_LABELS.includes(explLabel) ? explLabel : "شرح",
@@ -540,23 +543,26 @@ export async function saveCourse(formData: FormData): Promise<void> {
     url("sharh_book_url"),
     url("sharh_video_url"),
     parseTrack(formData.get("track")),
+    text("kind"),
+    text("mastery"),
   ];
 
   if (id > 0) {
     await q(
-      `UPDATE courses SET name = $1, subject = $2, unit = $3, memo_total = $4, expl_total = $5,
-         expl_label = $6, has_memo = $7, has_expl = $8,
-         sharh_name = $9, sharh_book_url = $10, sharh_video_url = $11, track = $12
-       WHERE id = $13`,
+      `UPDATE courses SET name = $1, subject = $2, unit = $3, memo_unit = $4, memo_total = $5,
+         expl_total = $6, expl_label = $7, has_memo = $8, has_expl = $9,
+         sharh_name = $10, sharh_book_url = $11, sharh_video_url = $12, track = $13,
+         kind = $14, mastery = $15
+       WHERE id = $16`,
       [...params, id]
     );
   } else {
     const max = (await q("SELECT COALESCE(MAX(sort_order), -1)::int AS m FROM courses"))[0];
     await q(
       `INSERT INTO courses
-         (name, subject, unit, memo_total, expl_total, expl_label, has_memo, has_expl,
-          sharh_name, sharh_book_url, sharh_video_url, track, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+         (name, subject, unit, memo_unit, memo_total, expl_total, expl_label, has_memo, has_expl,
+          sharh_name, sharh_book_url, sharh_video_url, track, kind, mastery, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
       [...params, Number(max?.m ?? -1) + 1]
     );
   }
@@ -564,6 +570,150 @@ export async function saveCourse(formData: FormData): Promise<void> {
 }
 
 /** يحذف مقررًا — ويُمنع إن كان في خطة طالب حتى لا تُمسح خطط محفوظة */
+/** نتيجة لصق قائمة مقررات */
+export type BulkCoursesResult = {
+  error?: string;
+  added?: number;
+  skipped?: string[];
+} | null;
+
+/** يقسّم سطرًا ملصوقًا: جدولة أو «|» أو فاصلة */
+function splitCells(line: string): string[] {
+  return line
+    .split(/\t+|\s*\|\s*|\s*[,،]\s*/)
+    .map((c) => c.replace(/\s+/g, " ").trim())
+    .filter((c, i, all) => !(c === "" && i === all.length - 1));
+}
+
+const NUM = /^[\d٠-٩]+$/;
+function toInt(raw: string): number {
+  const western = raw.replace(/[٠-٩]/g, (d) => String("٠١٢٣٤٥٦٧٨٩".indexOf(d)));
+  const n = Math.trunc(Number(western));
+  return Number.isFinite(n) && n >= 0 ? n : 0;
+}
+
+/**
+ * يضيف مقررات مسار من نصّ ملصوق.
+ * السطر الذي بلا فواصل عنوانُ فرعٍ يسري على ما بعده، وسطر المقرر:
+ * «الاسم | النوع | معيار الضبط | صفحات القراءة | أسطر الحفظ»
+ * أو مختصرًا: «الاسم | صفحات القراءة | أسطر الحفظ».
+ * أسطر الإجماليات تُتجاهل، وما زاد على الأعمدة الخمسة يُهمل.
+ */
+export async function createCourses(
+  _prev: BulkCoursesResult,
+  formData: FormData
+): Promise<BulkCoursesResult> {
+  await requireAdmin();
+  const track = parseTrack(formData.get("track"));
+  const readUnit = String(formData.get("read_unit") ?? "صفحة");
+  const memoUnitRaw = String(formData.get("memo_unit") ?? "سطر");
+  const unit = UNITS.includes(readUnit) ? readUnit : "صفحة";
+  const memo = UNITS.includes(memoUnitRaw) ? memoUnitRaw : "سطر";
+  const explLabel = EXPL_LABELS.includes(String(formData.get("expl_label") ?? ""))
+    ? String(formData.get("expl_label"))
+    : "قراءة";
+
+  type Parsed = {
+    name: string;
+    subject: string;
+    kind: string;
+    mastery: string;
+    read: number;
+    memoLines: number;
+  };
+  const parsed: Parsed[] = [];
+  let subject = "";
+
+  for (const raw of String(formData.get("rows") ?? "").split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line) continue;
+    const cells = splitCells(line);
+    // سطر بخلية واحدة: عنوان فرع
+    if (cells.length < 2) {
+      subject = cells[0] ?? "";
+      continue;
+    }
+    if (/إجمال/.test(cells[0])) continue;
+    // ترويسة الجدول الملصوقة مع البيانات
+    if (/^(المقرر|الاسم|النوع)$/.test(cells[0])) continue;
+
+    const name = cells[0];
+    if (name.length < 2) return { error: `سطر غير مفهوم: «${line}»` };
+
+    const nums = cells.slice(1).filter((c) => NUM.test(c));
+    if (nums.length < 2) {
+      return { error: `«${name}» بلا رقمَي القراءة والحفظ — راجع السطر` };
+    }
+    const words = cells.slice(1).filter((c) => !NUM.test(c));
+    parsed.push({
+      name,
+      subject,
+      kind: words[0] ?? "",
+      mastery: words[1] ?? "",
+      read: toInt(nums[0]),
+      memoLines: toInt(nums[1]),
+    });
+  }
+
+  if (parsed.length === 0) return { error: "الصق صفوف المقررات أولًا" };
+  const empty = parsed.find((c) => c.read === 0 && c.memoLines === 0);
+  if (empty) return { error: `«${empty.name}» بلا قراءة ولا حفظ — لا يصلح مقررًا` };
+
+  const existing = new Set(
+    ((await q("SELECT name FROM courses WHERE track = $1", [track])) as { name: string }[]).map(
+      (r) => r.name
+    )
+  );
+  const seen = new Set<string>();
+  const fresh: Parsed[] = [];
+  const skipped: string[] = [];
+  for (const c of parsed) {
+    if (seen.has(c.name)) continue;
+    seen.add(c.name);
+    if (existing.has(c.name)) skipped.push(c.name);
+    else fresh.push(c);
+  }
+  if (fresh.length === 0) {
+    return { added: 0, skipped, error: "كل المقررات مسجّلة في هذا المسار من قبل" };
+  }
+
+  const max = (await q("SELECT COALESCE(MAX(sort_order), -1)::int AS m FROM courses"))[0];
+  let order = Number(max?.m ?? -1) + 1;
+  const cols = 13;
+  const values = fresh
+    .map((_, i) => {
+      const b = i * cols;
+      return `($${b + 1}::text, $${b + 2}::text, $${b + 3}::text, $${b + 4}::text, $${b + 5}::int, $${b + 6}::int, $${b + 7}::text, $${b + 8}::boolean, $${b + 9}::boolean, $${b + 10}::text, $${b + 11}::text, $${b + 12}::text, $${b + 13}::int)`;
+    })
+    .join(", ");
+  await q(
+    `INSERT INTO courses
+       (name, subject, unit, memo_unit, memo_total, expl_total, expl_label,
+        has_memo, has_expl, kind, mastery, track, sort_order)
+     VALUES ${values}`,
+    fresh.flatMap((c) => [
+      c.name,
+      c.subject,
+      unit,
+      // وحدة الحفظ تُخزَّن فقط إن خالفت وحدة القراءة
+      memo === unit ? "" : memo,
+      c.memoLines,
+      c.read,
+      explLabel,
+      c.memoLines > 0,
+      c.read > 0,
+      c.kind,
+      c.mastery,
+      track,
+      order++,
+    ])
+  );
+
+  // المسار صار له مقررات جديدة، فخطط طلابه تُعاد قراءتها
+  revalidatePath("/", "layout");
+  return { added: fresh.length, skipped };
+}
+
 export async function deleteCourse(formData: FormData): Promise<void> {
   await requireAdmin();
   const id = Number(formData.get("id") ?? 0);

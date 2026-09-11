@@ -4,6 +4,7 @@ import {
   buildSchedule,
   explTotal,
   memoTotal,
+  memoUnit,
   periodsLabel,
   portionText,
   spanOf,
@@ -50,6 +51,11 @@ export function CourseSummary({
                   {course.subject}
                 </span>
               )}
+              {course.kind && (
+                <span className="text-xs" style={{ color }}>
+                  {course.kind}
+                </span>
+              )}
               <span className="ms-auto text-xs num" style={{ color: "var(--text-muted)" }}>
                 {periodsLabel(span.count, cadence)}
               </span>
@@ -57,8 +63,8 @@ export function CourseSummary({
             <div className="mt-2 grid gap-1 text-xs" style={{ color: "var(--text-secondary)" }}>
               {p.memoPer > 0 && (
                 <div>
-                  حفظ: {unitLabel(p.memoPer, course.unit)} {info.per} — من{" "}
-                  {unitLabel(memoTotal(course), course.unit)}
+                  حفظ: {unitLabel(p.memoPer, memoUnit(course))} {info.per} — من{" "}
+                  {unitLabel(memoTotal(course), memoUnit(course))}
                 </div>
               )}
               {p.explPer > 0 && (
@@ -67,6 +73,7 @@ export function CourseSummary({
                   {unitLabel(explTotal(course), course.unit)}
                 </div>
               )}
+              {course.mastery && <div>يُضبط بـ: {course.mastery}</div>}
               <div>
                 من {span.startPeriod?.first.hijri} إلى {span.endPeriod?.last.hijri}
               </div>

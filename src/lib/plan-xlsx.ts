@@ -5,6 +5,7 @@ import {
   buildSchedule,
   explTotal,
   memoTotal,
+  memoUnit,
   periodCount,
   portionText,
   spanOf,
@@ -46,7 +47,8 @@ function planRows(courses: Course[], picks: Pick[], cadence: Cadence): (string |
       "الحفظ",
       "الشرح / القراءة",
       "المسار الثاني",
-      "الوحدة",
+      "وحدة الحفظ",
+      "وحدة المسار الثاني",
       "أحداث الفترة",
     ],
   ];
@@ -61,7 +63,8 @@ function planRows(courses: Course[], picks: Pick[], cadence: Cadence): (string |
         portionText(p.memoFrom, p.memoTo),
         portionText(p.explFrom, p.explTo),
         p.course.expl_label,
-        p.course.unit,
+        p.course.has_memo ? memoUnit(p.course) : "—",
+        p.course.has_expl ? p.course.unit : "—",
         r.period.events.map((e) => EVENT_LABEL[e]).join("، "),
       ]);
     }
@@ -69,7 +72,7 @@ function planRows(courses: Course[], picks: Pick[], cadence: Cadence): (string |
   return rows;
 }
 
-const PLAN_WIDTHS = [8, 26, 14, 14, 26, 14, 16, 14, 10, 24];
+const PLAN_WIDTHS = [8, 26, 14, 14, 26, 14, 16, 14, 12, 14, 24];
 
 /** ملف خطة طالب واحد */
 export function studentWorkbook(student: Student, courses: Course[], picks: Pick[]): Buffer {
@@ -90,7 +93,9 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     [
       "المقرر",
       "الفن",
-      "الوحدة",
+      "النوع",
+      "معيار الضبط",
+      "وحدة الحفظ",
       "حجم الحفظ",
       `حفظ ${info.per}`,
       "المسار الثاني",
@@ -109,7 +114,9 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     head.push([
       course.name,
       course.subject,
-      course.unit,
+      course.kind || "—",
+      course.mastery || "—",
+      course.has_memo ? memoUnit(course) : "—",
       memoTotal(course) || "—",
       p.memoPer || "—",
       course.has_expl ? course.expl_label : "—",
@@ -123,7 +130,7 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
   }
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22, 14]),
+    sheet(head, [30, 12, 12, 12, 12, 12, 14, 12, 10, 14, 12, 22, 22, 14]),
     "ملخص الخطة"
   );
   XLSX.utils.book_append_sheet(
@@ -170,7 +177,8 @@ export function allStudentsWorkbook(
       "الحفظ",
       "الشرح / القراءة",
       "المسار الثاني",
-      "الوحدة",
+      "وحدة الحفظ",
+      "وحدة المسار الثاني",
     ],
   ];
 
@@ -204,7 +212,8 @@ export function allStudentsWorkbook(
           portionText(p.memoFrom, p.memoTo),
           portionText(p.explFrom, p.explTo),
           p.course.expl_label,
-          p.course.unit,
+          p.course.has_memo ? memoUnit(p.course) : "—",
+          p.course.has_expl ? p.course.unit : "—",
         ]);
       }
     }
@@ -215,10 +224,13 @@ export function allStudentsWorkbook(
       "المقرر",
       "المسار",
       "الفن",
-      "الوحدة",
+      "النوع",
+      "معيار الضبط",
       "حجم الحفظ",
+      "وحدة الحفظ",
       "المسار الثاني",
       "حجمه",
+      "وحدته",
       "الحالة",
     ],
   ];
@@ -227,10 +239,13 @@ export function allStudentsWorkbook(
       c.name,
       trackInfo(c.track).name,
       c.subject,
-      c.unit,
+      c.kind || "—",
+      c.mastery || "—",
       memoTotal(c) || "—",
+      c.has_memo ? memoUnit(c) : "—",
       c.has_expl ? c.expl_label : "—",
       explTotal(c) || "—",
+      c.has_expl ? c.unit : "—",
       c.active ? "مفعّل" : "موقوف",
     ]);
   }
@@ -238,12 +253,12 @@ export function allStudentsWorkbook(
   XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 18, 14, 14, 12, 12, 16, 14, 30]), "الطلاب");
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(detail, [24, 18, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),
+    sheet(detail, [24, 18, 12, 10, 26, 14, 14, 30, 14, 16, 14, 12, 14]),
     "تفاصيل الخطط"
   );
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(coursesSheet, [26, 18, 14, 10, 12, 14, 10, 12]),
+    sheet(coursesSheet, [30, 18, 14, 12, 12, 12, 12, 14, 10, 12, 12]),
     "المقررات"
   );
   XLSX.utils.book_append_sheet(wb, calendarSheet(), "الخطة الزمنية");

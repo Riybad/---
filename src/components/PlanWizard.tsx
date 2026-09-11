@@ -8,6 +8,7 @@ import {
   buildSchedule,
   explTotal,
   memoTotal,
+  memoUnit,
   approxMonths,
   portionText,
   rateFor,
@@ -435,7 +436,7 @@ export default function PlanWizard({
 /** وصف مختصر لمساري المقرر وحجميهما */
 function trackSummary(c: Course): string {
   const parts: string[] = [];
-  if (c.has_memo) parts.push(`حفظ ${unitLabel(memoTotal(c), c.unit)}`);
+  if (c.has_memo) parts.push(`حفظ ${unitLabel(memoTotal(c), memoUnit(c))}`);
   if (c.has_expl) parts.push(`${c.expl_label} ${unitLabel(explTotal(c), c.unit)}`);
   return parts.join(" · ");
 }
@@ -649,7 +650,7 @@ function SplitCourse({
         <ul className="mt-2 grid gap-1.5 text-sm" style={{ color: "var(--text-secondary)" }}>
           {course.has_memo && (
             <li>
-              🧠 حفظ <strong>{unitLabel(memoPer, course.unit)}</strong>
+              🧠 حفظ <strong>{unitLabel(memoPer, memoUnit(course))}</strong>
             </li>
           )}
           {course.has_expl && (
