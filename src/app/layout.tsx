@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "نبغ — النخب الناشئة (تمكين)",
+  title: "نخب — النخب الناشئة (تمكين)",
   description: "خطط الطلاب السنوية: تقسيم المقررات على السنة بين الحفظ والشرح",
 };
 
