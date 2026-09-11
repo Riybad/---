@@ -53,12 +53,16 @@ const SCHEMA = `
     ord INTEGER NOT NULL DEFAULT 0,
     memo_per INTEGER NOT NULL DEFAULT 0,
     expl_per INTEGER NOT NULL DEFAULT 0,
-    start_session INTEGER NOT NULL DEFAULT 0
+    start_session INTEGER NOT NULL DEFAULT 0,
+    done BOOLEAN NOT NULL DEFAULT FALSE,
+    done_at TIMESTAMPTZ
   );
   ALTER TABLE students ADD COLUMN IF NOT EXISTS cadence TEXT NOT NULL DEFAULT 'weekly';
   ALTER TABLE students ADD COLUMN IF NOT EXISTS track TEXT NOT NULL DEFAULT 'tarbawi';
   CREATE INDEX IF NOT EXISTS courses_track_idx ON courses (track);
   CREATE INDEX IF NOT EXISTS students_track_idx ON students (track);
+  ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done BOOLEAN NOT NULL DEFAULT FALSE;
+  ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done_at TIMESTAMPTZ;
   CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
 `;
 
@@ -194,6 +198,9 @@ export type PlanItem = {
   memo_per: number;
   expl_per: number;
   start_session: number;
+  /** هل أنهى الطالب هذا المقرر — يسجّله المشرف */
+  done: boolean;
+  done_at: Date | null;
 };
 
 /** رمز الرابط الخاص بخطة الطالب */

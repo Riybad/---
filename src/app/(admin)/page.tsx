@@ -2,7 +2,7 @@ import Link from "next/link";
 import { headers } from "next/headers";
 import CopyButton from "@/components/CopyButton";
 import { YEAR_END, YEAR_START } from "@/lib/calendar";
-import { listCourses, listStudents, planCounts } from "@/lib/queries";
+import { listCourses, listStudents, progressCounts } from "@/lib/queries";
 import { TRACKS, type Track } from "@/lib/tracks";
 import type { Course } from "@/lib/plan";
 import type { Student } from "@/lib/db";
@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export default async function DashboardPage() {
   const [students, counts, courses] = await Promise.all([
     listStudents(),
-    planCounts(),
+    progressCounts(),
     listCourses(),
   ]);
 
@@ -25,7 +25,11 @@ export default async function DashboardPage() {
   const registeredToday = students.filter(
     (s) => new Date(s.created_at).toISOString().slice(0, 10) === today
   ).length;
-  const withoutPlan = students.filter((s) => (counts.get(s.id) ?? 0) === 0).length;
+  const withoutPlan = students.filter((s) => (counts.get(s.id)?.total ?? 0) === 0).length;
+  const finished = students.filter((s) => {
+    const c = counts.get(s.id);
+    return c && c.total > 0 && c.done === c.total;
+  }).length;
 
   return (
     <main className="grid gap-6">
@@ -41,8 +45,12 @@ export default async function DashboardPage() {
           value={String(withoutPlan)}
           sub={withoutPlan ? "قسّم لهم أو أرسل لهم روابطهم" : "كل الطلاب لهم خطط"}
         />
+        <Tile
+          label="أنهى مقرراته"
+          value={String(finished)}
+          sub={finished ? "أنهوا كل مقررات خططهم" : "لم ينهِ أحد كل مقرراته بعد"}
+        />
         <Tile label="المقررات المفعّلة" value={String(courses.length)} sub={`في ${TRACKS.length} مسارين`} />
-        <Tile label="سنة الخطة" value="366 يومًا" sub={`${YEAR_START.hijri} إلى ${YEAR_END.hijri}`} />
       </section>
 
       {/* المساران */}
@@ -99,6 +107,7 @@ export default async function DashboardPage() {
                   <th>الاسم</th>
                   <th>المسار</th>
                   <th>المقررات</th>
+                  <th>المنجَز</th>
                   <th>التاريخ</th>
                   <th>إكسل</th>
                 </tr>
@@ -106,7 +115,8 @@ export default async function DashboardPage() {
               <tbody>
                 {students.slice(0, 8).map((s) => {
                   const t = TRACKS.find((x) => x.key === s.track) ?? TRACKS[0];
-                  const n = counts.get(s.id) ?? 0;
+                  const c = counts.get(s.id);
+                  const n = c?.total ?? 0;
                   return (
                     <tr key={s.id}>
                       <td>
@@ -127,6 +137,21 @@ export default async function DashboardPage() {
                           n
                         ) : (
                           <span style={{ color: "var(--brand-amber)" }}>بلا خطة</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {n === 0 ? (
+                          <span style={{ color: "var(--text-muted)" }}>—</span>
+                        ) : (
+                          <span
+                            style={{
+                              color: c && c.done === n ? t.color : "var(--text-secondary)",
+                              fontWeight: c && c.done === n ? 700 : 400,
+                            }}
+                          >
+                            {c?.done ?? 0} من {n}
+                            {c && c.done === n && " ✓"}
+                          </span>
                         )}
                       </td>
                       <td className="num" dir="ltr">
@@ -162,10 +187,14 @@ function TrackCard({
   track: Track;
   students: Student[];
   courses: Course[];
-  counts: Map<number, number>;
+  counts: Map<number, { done: number; total: number }>;
   khittaUrl: string;
 }) {
-  const planned = students.filter((s) => (counts.get(s.id) ?? 0) > 0).length;
+  const planned = students.filter((s) => (counts.get(s.id)?.total ?? 0) > 0).length;
+  const finished = students.filter((s) => {
+    const c = counts.get(s.id);
+    return c && c.total > 0 && c.done === c.total;
+  }).length;
   return (
     <div className="card p-5" style={{ borderTop: `3px solid ${track.color}` }}>
       <div className="flex flex-wrap items-baseline gap-2">
@@ -173,7 +202,7 @@ function TrackCard({
           {track.name}
         </h2>
         <span className="text-sm num" style={{ color: "var(--text-muted)" }}>
-          {students.length} طالبًا · {planned} لهم خطط
+          {students.length} طالبًا · {planned} لهم خطط · {finished} أنهوا مقرراتهم
         </span>
       </div>
 
@@ -214,6 +243,9 @@ function TrackCard({
         </Link>
         <Link className="btn btn-ghost text-sm" href={`/students?track=${track.key}`}>
           طلابه ({students.length})
+        </Link>
+        <Link className="btn btn-ghost text-sm" href={`/injaz?track=${track.key}`}>
+          إنجازهم
         </Link>
         <Link className="btn btn-ghost text-sm" href="/courses">
           مقرراته

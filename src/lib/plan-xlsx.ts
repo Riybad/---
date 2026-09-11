@@ -84,6 +84,7 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
     ["الجوال", student.phone || "—"],
     ["ملاحظات", student.notes || "—"],
     ["وحدة التقسيم", info.label],
+    ["المنجَز", `${picks.filter((p) => p.done).length} من ${picks.length}`],
     [`عدد ${info.plural} في السنة`, periodCount(cadence)],
     [],
     [
@@ -98,6 +99,7 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       `عدد ${info.plural}`,
       "من",
       "إلى",
+      "الحالة",
     ],
   ];
   for (const p of picks) {
@@ -116,11 +118,12 @@ export function studentWorkbook(student: Student, courses: Course[], picks: Pick
       span.count,
       span.startPeriod?.first.hijri ?? "—",
       span.endPeriod?.last.hijri ?? "—",
+      p.done ? "أنهاه" : "لم ينهه بعد",
     ]);
   }
   XLSX.utils.book_append_sheet(
     wb,
-    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22]),
+    sheet(head, [24, 12, 10, 12, 12, 14, 10, 14, 14, 22, 22, 14]),
     "ملخص الخطة"
   );
   XLSX.utils.book_append_sheet(
@@ -148,6 +151,7 @@ export function allStudentsWorkbook(
       "الجوال",
       "وحدة التقسيم",
       "عدد المقررات",
+      "المنجَز",
       "الفترات المشغولة",
       "تاريخ التسجيل",
       "ملاحظات",
@@ -181,6 +185,7 @@ export function allStudentsWorkbook(
       student.phone || "—",
       info.label,
       picks.length,
+      `${picks.filter((x) => x.done).length} من ${picks.length}`,
       schedule.filter((r) => r.portions.length > 0).length,
       new Date(student.created_at).toISOString().slice(0, 10),
       student.notes || "",
@@ -230,7 +235,7 @@ export function allStudentsWorkbook(
     ]);
   }
 
-  XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 18, 14, 14, 12, 16, 14, 30]), "الطلاب");
+  XLSX.utils.book_append_sheet(wb, sheet(summary, [6, 26, 18, 14, 14, 12, 12, 16, 14, 30]), "الطلاب");
   XLSX.utils.book_append_sheet(
     wb,
     sheet(detail, [24, 18, 12, 10, 26, 14, 14, 26, 14, 16, 14, 10]),

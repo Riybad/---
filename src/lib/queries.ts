@@ -64,11 +64,41 @@ export async function planCounts(): Promise<Map<number, number>> {
   return new Map(rows.map((r) => [r.student_id, r.n]));
 }
 
+/** بنود خطط طلاب مسار كامل في استعلام واحد — مفتاحها معرّف الطالب */
+export async function planItemsByTrack(track?: TrackKey): Promise<Map<number, PlanItem[]>> {
+  const rows = (await q(
+    `SELECT pi.* FROM plan_items pi
+       JOIN students s ON s.id = pi.student_id
+      ${track ? "WHERE s.track = $1" : ""}
+      ORDER BY pi.student_id, pi.ord, pi.id`,
+    track ? [track] : []
+  )) as PlanItem[];
+  const map = new Map<number, PlanItem[]>();
+  for (const r of rows) {
+    const list = map.get(r.student_id);
+    if (list) list.push(r);
+    else map.set(r.student_id, [r]);
+  }
+  return map;
+}
+
+/** إنجاز كل طالب: كم مقررًا أنهى من مقررات خطته */
+export async function progressCounts(): Promise<Map<number, { done: number; total: number }>> {
+  const rows = (await q(
+    `SELECT student_id,
+            COUNT(*)::int AS total,
+            COUNT(*) FILTER (WHERE done)::int AS done
+       FROM plan_items GROUP BY student_id`
+  )) as { student_id: number; total: number; done: number }[];
+  return new Map(rows.map((r) => [r.student_id, { done: r.done, total: r.total }]));
+}
+
 export function toPicks(items: PlanItem[]): Pick[] {
   return items.map((i) => ({
     courseId: i.course_id,
     memoPer: i.memo_per,
     explPer: i.expl_per,
     start: i.start_session,
+    done: i.done,
   }));
 }
