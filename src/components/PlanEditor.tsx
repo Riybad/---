@@ -9,6 +9,7 @@ import {
   defaultWeeks,
   explTotal,
   memoTotal,
+  memoUnit,
   rateFor,
   sessionsNeeded,
   spanOf,
@@ -200,7 +201,7 @@ export default function PlanEditor({
                   </button>
                 </div>
                 <div className="text-xs" style={{ color: "var(--text-secondary)" }}>
-                  {course.has_memo && <>🧠 {unitLabel(memoPer, course.unit)} </>}
+                  {course.has_memo && <>🧠 {unitLabel(memoPer, memoUnit(course))} </>}
                   {course.has_expl && (
                     <>
                       📖 {unitLabel(explPer, course.unit)}{" "}

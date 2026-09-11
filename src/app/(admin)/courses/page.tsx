@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { deleteCourse, saveCourse, toggleCourse } from "@/app/plan-actions";
-import { explTotal, memoTotal, UNITS, unitLabel } from "@/lib/plan";
+import { explTotal, memoTotal, memoUnit, UNITS, unitLabel } from "@/lib/plan";
 import { listCourses } from "@/lib/queries";
 import type { Course } from "@/lib/plan";
 import { TRACKS, type Track, type TrackKey } from "@/lib/tracks";
 import ConfirmButton from "@/components/ConfirmButton";
 import CourseResources from "@/components/CourseResources";
+import CourseBulkForm from "@/components/CourseBulkForm";
 
 export const dynamic = "force-dynamic";
 
@@ -69,6 +70,13 @@ function TrackSection({ track, courses }: { track: Track; courses: Course[] }) {
           <CourseForm track={track.key} />
         </div>
       </details>
+
+      <details className="card p-5" open={courses.length === 0}>
+        <summary className="cursor-pointer font-bold">لصق جدول مقررات إلى {track.name}</summary>
+        <div className="mt-4">
+          <CourseBulkForm defaultTrack={track.key} />
+        </div>
+      </details>
     </section>
   );
 }
@@ -84,12 +92,22 @@ function CourseRow({ course, track }: { course: Course; track: Track }) {
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
           {course.subject && <>{course.subject} · </>}
           {[
-            course.has_memo && `حفظ ${unitLabel(memoTotal(course), course.unit)}`,
+            course.has_memo && `حفظ ${unitLabel(memoTotal(course), memoUnit(course))}`,
             course.has_expl && `${course.expl_label} ${unitLabel(explTotal(course), course.unit)}`,
           ]
             .filter(Boolean)
             .join(" · ")}
         </span>
+        {course.kind && (
+          <span className="badge" style={{ background: `${track.color}1a`, color: track.color }}>
+            {course.kind}
+          </span>
+        )}
+        {course.mastery && (
+          <span className="badge" style={{ background: "var(--surface-stripe)" }}>
+            ضبطه: {course.mastery}
+          </span>
+        )}
         {!course.active && <span className="badge badge-warning">موقوف</span>}
         <div className="ms-auto flex gap-2">
           <form action={toggleCourse}>
@@ -159,7 +177,7 @@ function CourseForm({ course, track }: { course?: Course; track: TrackKey }) {
         </select>
       </div>
       <div>
-        <label className="label">الوحدة</label>
+        <label className="label">وحدة المسار الثاني</label>
         <select name="unit" className="input" defaultValue={course?.unit ?? "صفحة"}>
           {UNITS.map((u) => (
             <option key={u} value={u}>
@@ -168,16 +186,32 @@ function CourseForm({ course, track }: { course?: Course; track: TrackKey }) {
           ))}
         </select>
       </div>
-      <div>
-        <label className="label">حجم الحفظ</label>
-        <input
-          name="memo_total"
-          type="number"
-          min={0}
-          className="input num"
-          defaultValue={course ? memoTotal(course) : 100}
-          required
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="label">وحدة الحفظ</label>
+          <select
+            name="memo_unit"
+            className="input"
+            defaultValue={course ? memoUnit(course) : "صفحة"}
+          >
+            {UNITS.map((u) => (
+              <option key={u} value={u}>
+                {u}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="label">حجم الحفظ</label>
+          <input
+            name="memo_total"
+            type="number"
+            min={0}
+            className="input num"
+            defaultValue={course ? memoTotal(course) : 100}
+            required
+          />
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2 sm:col-span-2">
         <div>
@@ -196,6 +230,26 @@ function CourseForm({ course, track }: { course?: Course; track: TrackKey }) {
             className="input num"
             defaultValue={course ? explTotal(course) : 100}
             required
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-2 sm:col-span-2">
+        <div>
+          <label className="label">النوع</label>
+          <input
+            name="kind"
+            className="input"
+            placeholder="نظم، نثر، كتاب…"
+            defaultValue={course?.kind ?? ""}
+          />
+        </div>
+        <div>
+          <label className="label">معيار الضبط</label>
+          <input
+            name="mastery"
+            className="input"
+            placeholder="حفظ، ملخص، اختبار…"
+            defaultValue={course?.mastery ?? ""}
           />
         </div>
       </div>

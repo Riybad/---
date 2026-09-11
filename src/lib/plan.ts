@@ -6,7 +6,14 @@ export type Course = {
   name: string;
   /** الفن: العقيدة، الفقه، اللغة… */
   subject: string;
+  /** وحدة المسار الثاني (القراءة/الشرح) */
   unit: string;
+  /** وحدة الحفظ إن اختلفت — فارغة تعني أنها وحدة المقرر نفسها */
+  memo_unit: string;
+  /** نوع المتن: نظم، نثر، كتاب… */
+  kind: string;
+  /** معيار الضبط: حفظ، ملخص، اختبار… */
+  mastery: string;
   /** حجم مسار الحفظ ومسار الشرح/القراءة — قد يختلفان (التاريخ: حفظ 30، قراءة 750) */
   memo_total: number;
   expl_total: number;
@@ -47,10 +54,16 @@ export type Pick = {
   done?: boolean;
 };
 
-export const UNITS = ["بيت", "صفحة", "باب", "درس", "سؤال", "حديث", "فصل"];
+export const UNITS = ["بيت", "سطر", "صفحة", "باب", "درس", "سؤال", "حديث", "فصل"];
+
+/** وحدة الحفظ — قد تختلف عن وحدة القراءة (أسطر حفظ مقابل صفحات قراءة) */
+export function memoUnit(c: Course): string {
+  return c.memo_unit || c.unit;
+}
 
 const PLURALS: Record<string, string> = {
   بيت: "أبيات",
+  سطر: "أسطر",
   صفحة: "صفحات",
   باب: "أبواب",
   درس: "دروس",
