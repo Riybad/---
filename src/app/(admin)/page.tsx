@@ -3,7 +3,7 @@ import { headers } from "next/headers";
 import CopyButton from "@/components/CopyButton";
 import { YEAR_END, YEAR_START } from "@/lib/calendar";
 import { listCourses, listStudents, progressCounts } from "@/lib/queries";
-import { TRACKS, type Track } from "@/lib/tracks";
+import { TRACKS, trackInfo, type Track } from "@/lib/tracks";
 import type { Course } from "@/lib/plan";
 import type { Student } from "@/lib/db";
 
@@ -25,7 +25,10 @@ export default async function DashboardPage() {
   const registeredToday = students.filter(
     (s) => new Date(s.created_at).toISOString().slice(0, 10) === today
   ).length;
-  const withoutPlan = students.filter((s) => (counts.get(s.id)?.total ?? 0) === 0).length;
+  // «بلا خطة» لا معنى له في مسار بلا جدول زمني
+  const withoutPlan = students.filter(
+    (s) => trackInfo(s.track).timeline && (counts.get(s.id)?.total ?? 0) === 0
+  ).length;
   const finished = students.filter((s) => {
     const c = counts.get(s.id);
     return c && c.total > 0 && c.done === c.total;
@@ -73,14 +76,22 @@ export default async function DashboardPage() {
           <div className="min-w-0">
             <h2 className="font-bold">تصدير إكسل</h2>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              <strong>كل الطلاب</strong>: ورقة الطلاب بمساراتهم، وتفاصيل خططهم صفًا لكل فترة
-              ومقرر، والمقررات، والخطة الزمنية. أما <strong>الطالب الواحد</strong> فمن صفحته أو
-              من زرّي «قالب» و«تفصيلي» في جدول الطلاب.
+              لكل مسار ملفه: <strong>النخب التربوية</strong> خططها الزمنية صفًا لكل فترة ومقرر،
+              و<strong>النخب العلمية</strong> إنجاز طلابها على مقرراتها. أما الطالب الواحد فمن
+              صفحته أو من أزرار التصدير في جدول الطلاب.
             </p>
           </div>
-          <a className="btn btn-primary ms-auto text-sm" href="/api/export/khitta">
-            تصدير كل الخطط
-          </a>
+          <div className="ms-auto flex flex-wrap gap-2">
+            {TRACKS.map((t) => (
+              <a
+                key={t.key}
+                className="btn btn-primary text-sm"
+                href={`/api/export/khitta?track=${t.key}`}
+              >
+                تصدير {t.name}
+              </a>
+            ))}
+          </div>
         </div>
       </section>
 
@@ -135,8 +146,10 @@ export default async function DashboardPage() {
                       <td className="num">
                         {n > 0 ? (
                           n
-                        ) : (
+                        ) : t.timeline ? (
                           <span style={{ color: "var(--brand-amber)" }}>بلا خطة</span>
+                        ) : (
+                          "—"
                         )}
                       </td>
                       <td className="whitespace-nowrap">
@@ -159,11 +172,16 @@ export default async function DashboardPage() {
                       </td>
                       <td className="whitespace-nowrap">
                         <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
-                          قالب
-                        </a>{" "}
-                        <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
-                          تفصيلي
+                          {t.timeline ? "قالب" : "مقرراته"}
                         </a>
+                        {t.timeline && (
+                          <>
+                            {" "}
+                            <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
+                              تفصيلي
+                            </a>
+                          </>
+                        )}
                       </td>
                     </tr>
                   );
@@ -202,7 +220,8 @@ function TrackCard({
           {track.name}
         </h2>
         <span className="text-sm num" style={{ color: "var(--text-muted)" }}>
-          {students.length} طالبًا · {planned} لهم خطط · {finished} أنهوا مقرراتهم
+          {students.length} طالبًا
+          {track.timeline && ` · ${planned} لهم خطط`} · {finished} أنهوا مقرراتهم
         </span>
       </div>
 
@@ -232,8 +251,8 @@ function TrackCard({
         </>
       ) : (
         <p className="mt-3 text-xs" style={{ color: "var(--text-muted)" }}>
-          بلا رابط تسجيل — تضيف الطالب من اللوحة وتقسّم له خطته، أو ترسل له رابط خطته الخاص
-          ليقسّم بنفسه.
+          بلا جدول زمني وبلا رابط تسجيل: مقررات المسار كلها مطلوبة من كل طالب، وأنت تسجّل
+          إنجازه من شاشة الإنجاز.
         </p>
       )}
 

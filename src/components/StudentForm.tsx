@@ -42,24 +42,31 @@ export function NewStudentForm({ defaultTrack = "tarbawi" }: { defaultTrack?: Tr
         </p>
       </Fieldset>
 
-      <Fields />
+      <Fields timeline={info.timeline} />
 
-      <Fieldset legend="الخطة">
-        <div className="grid gap-2">
-          <Choice
-            checked={mode === "plan"}
-            onSelect={() => setMode("plan")}
-            title="قسّم له الآن"
-            note="تُبنى له خطة مبدئية على مقررات مساره، وتفتح لك شاشة التعديل لتضبط المدد والترتيب."
-          />
-          <Choice
-            checked={mode === "empty"}
-            onSelect={() => setMode("empty")}
-            title="أنشئه بلا خطة"
-            note="يُسجَّل الطالب فقط، وتقسّم له لاحقًا أو ترسل له رابط خطته ليقسّم بنفسه."
-          />
-        </div>
-      </Fieldset>
+      {info.timeline ? (
+        <Fieldset legend="الخطة">
+          <div className="grid gap-2">
+            <Choice
+              checked={mode === "plan"}
+              onSelect={() => setMode("plan")}
+              title="قسّم له الآن"
+              note="تُبنى له خطة مبدئية على مقررات مساره، وتفتح لك شاشة التعديل لتضبط المدد والترتيب."
+            />
+            <Choice
+              checked={mode === "empty"}
+              onSelect={() => setMode("empty")}
+              title="أنشئه بلا خطة"
+              note="يُسجَّل الطالب فقط، وتقسّم له لاحقًا أو ترسل له رابط خطته ليقسّم بنفسه."
+            />
+          </div>
+        </Fieldset>
+      ) : (
+        <p className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}>
+          {info.name} بلا جدول زمني: مقرراتها كلها مطلوبة منه، وتسجّل إنجازه من شاشة الإنجاز —
+          فلا تقسيم ولا مدد.
+        </p>
+      )}
 
       <Footer error={error} pending={pending} label="أضف الطالب" />
     </form>
@@ -106,7 +113,7 @@ export function EditStudentForm({ student }: { student: Student }) {
         )}
       </Fieldset>
 
-      <Fields student={student} />
+      <Fields student={student} timeline={trackOf(track).timeline} />
       <Footer
         error={error}
         pending={pending}
@@ -117,7 +124,11 @@ export function EditStudentForm({ student }: { student: Student }) {
   );
 }
 
-function Fields({ student }: { student?: Student }) {
+function trackOf(key: TrackKey) {
+  return TRACKS.find((t) => t.key === key) ?? TRACKS[0];
+}
+
+function Fields({ student, timeline = true }: { student?: Student; timeline?: boolean }) {
   return (
     <>
       <div className="grid gap-3 sm:grid-cols-2">
@@ -137,19 +148,23 @@ function Fields({ student }: { student?: Student }) {
         </div>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <div>
-          <label className="label">وحدة عرض الخطة</label>
-          <select name="cadence" className="input" defaultValue={student?.cadence ?? "weekly"}>
-            {CADENCES.map((c) => (
-              <option key={c.key} value={c.key}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            تحدّد كيف يُعرض الورد: كل يوم أو كل أسبوع أو كل شهر.
-          </p>
-        </div>
+        {timeline ? (
+          <div>
+            <label className="label">وحدة عرض الخطة</label>
+            <select name="cadence" className="input" defaultValue={student?.cadence ?? "weekly"}>
+              {CADENCES.map((c) => (
+                <option key={c.key} value={c.key}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+            <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
+              تحدّد كيف يُعرض الورد: كل يوم أو كل أسبوع أو كل شهر.
+            </p>
+          </div>
+        ) : (
+          <input type="hidden" name="cadence" value={student?.cadence ?? "weekly"} />
+        )}
         <div>
           <label className="label">ملاحظات</label>
           <input name="notes" className="input" defaultValue={student?.notes ?? ""} />
@@ -294,22 +309,29 @@ export function BulkStudentForm({ defaultTrack = "tarbawi" }: { defaultTrack?: T
         />
       </div>
 
-      <Fieldset legend="خططهم">
-        <div className="grid gap-2">
-          <Choice
-            checked={mode === "empty"}
-            onSelect={() => setMode("empty")}
-            title="بلا خطة الآن"
-            note="يُسجَّلون فقط، ثم تقسّم لكلٍّ خطته أو ترسل له رابطه ليقسّم بنفسه."
-          />
-          <Choice
-            checked={mode === "plan"}
-            onSelect={() => setMode("plan")}
-            title="قسّم لهم توزيعًا مبدئيًا"
-            note="التوزيع نفسه للجميع على مقررات المسار، تعدّله لكل طالب من صفحته."
-          />
-        </div>
-      </Fieldset>
+      {info.timeline ? (
+        <Fieldset legend="خططهم">
+          <div className="grid gap-2">
+            <Choice
+              checked={mode === "empty"}
+              onSelect={() => setMode("empty")}
+              title="بلا خطة الآن"
+              note="يُسجَّلون فقط، ثم تقسّم لكلٍّ خطته أو ترسل له رابطه ليقسّم بنفسه."
+            />
+            <Choice
+              checked={mode === "plan"}
+              onSelect={() => setMode("plan")}
+              title="قسّم لهم توزيعًا مبدئيًا"
+              note="التوزيع نفسه للجميع على مقررات المسار، تعدّله لكل طالب من صفحته."
+            />
+          </div>
+        </Fieldset>
+      ) : (
+        <p className="rounded-lg px-3 py-2 text-xs" style={{ background: "var(--surface-stripe)", color: "var(--text-secondary)" }}>
+          {info.name} بلا جدول زمني: مقرراتها كلها مطلوبة من كل طالب، وتسجّل إنجازهم من شاشة
+          الإنجاز.
+        </p>
+      )}
 
       <div className="flex flex-wrap items-center gap-3">
         <button className="btn btn-primary text-sm" disabled={pending || count === 0}>

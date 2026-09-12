@@ -31,7 +31,23 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
   const picks = toPicks(items);
   const cadence = (student.cadence || "weekly") as Cadence;
   const info = cadenceInfo(cadence);
-  const used = buildSchedule(allCourses, picks, cadence).filter((r) => r.portions.length > 0).length;
+  const timeline = info2.timeline;
+  const used = timeline
+    ? buildSchedule(allCourses, picks, cadence).filter((r) => r.portions.length > 0).length
+    : 0;
+
+  /**
+   * بلا جدول زمني: مقررات المسار كلها مطلوبة منه، فتُعرض كلها ولو لم
+   * يُسجَّل له بند بعد. وبالجدول: لا يُعرض إلا ما في خطته.
+   */
+  const doneOf = new Map(items.map((i) => [i.course_id, i.done]));
+  const checklist = timeline
+    ? items.map((i) => ({
+        course: allCourses.find((c) => c.id === i.course_id),
+        done: i.done,
+      }))
+    : trackCourses.map((c) => ({ course: c, done: doneOf.get(c.id) ?? false }));
+  const doneCount = checklist.filter((x) => x.done).length;
 
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
@@ -55,17 +71,19 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         </div>
         <div className="ms-auto flex flex-wrap gap-2">
           <a className="btn btn-primary text-sm" href={`/api/export/khitta/${student.token}`}>
-            تصدير على القالب
+            {timeline ? "تصدير على القالب" : "تصدير مقرراته"}
           </a>
-          <a
-            className="btn btn-ghost text-sm"
-            href={`/api/export/khitta/${student.token}?format=table`}
-          >
-            جدول تفصيلي
-          </a>
+          {timeline && (
+            <a
+              className="btn btn-ghost text-sm"
+              href={`/api/export/khitta/${student.token}?format=table`}
+            >
+              جدول تفصيلي
+            </a>
+          )}
           <CopyButton
             text={planUrl}
-            label={picks.length === 0 ? "نسخ رابط تقسيمه" : "نسخ رابط خطته"}
+            label={!timeline ? "نسخ رابط صفحته" : picks.length === 0 ? "نسخ رابط تقسيمه" : "نسخ رابط خطته"}
           />
           <Link className="btn btn-ghost text-sm" href="/students">
             رجوع
@@ -74,15 +92,19 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <Stat label="عدد المقررات" value={`${picks.length}`} />
+        <Stat label="عدد المقررات" value={`${checklist.length}`} />
         <Stat
           label="المنجَز"
-          value={items.length ? `${items.filter((i) => i.done).length} من ${items.length}` : "—"}
+          value={checklist.length ? `${doneCount} من ${checklist.length}` : "—"}
         />
-        <Stat label={`${info.plural} المشغولة`} value={periodsLabel(used, cadence)} />
+        {timeline ? (
+          <Stat label={`${info.plural} المشغولة`} value={periodsLabel(used, cadence)} />
+        ) : (
+          <Stat label="طريقة المسار" value="بلا جدول زمني" />
+        )}
       </div>
 
-      {picks.length === 0 && trackCourses.length > 0 && (
+      {timeline && picks.length === 0 && trackCourses.length > 0 && (
         <div className="card p-5" style={{ borderInlineStart: `3px solid ${info2.color}` }}>
           <h2 className="font-bold">لا خطة له بعد</h2>
           <p className="mt-1 text-sm" style={{ color: "var(--text-secondary)" }}>
@@ -100,7 +122,7 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
 
       <EditStudentForm student={student} />
 
-      {trackCourses.length === 0 ? (
+      {!timeline ? null : trackCourses.length === 0 ? (
         <p className="card p-5 text-sm" style={{ color: "var(--text-secondary)" }}>
           لا مقررات في {info2.name} بعد — أضفها من{" "}
           <Link href="/courses" className="font-semibold underline">
@@ -118,35 +140,37 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         />
       )}
 
-      {items.length > 0 && (
+      {checklist.length > 0 && (
         <div className="card p-5">
           <div className="mb-3 flex flex-wrap items-baseline gap-2">
-            <h2 className="font-bold">إنجاز المقررات</h2>
+            <h2 className="font-bold">{timeline ? "إنجاز المقررات" : "مقررات المسار"}</h2>
             <span className="text-xs" style={{ color: "var(--text-muted)" }}>
               اضغط المقرر لتسجّل أنه أنهاه أو لم ينهه
             </span>
             <span className="ms-auto text-sm font-bold" style={{ color: info2.color }}>
-              {items.filter((i) => i.done).length} من {items.length}
-              {items.every((i) => i.done) && " ✓ أنهى الكل"}
+              {doneCount} من {checklist.length}
+              {doneCount === checklist.length && " ✓ أنهى الكل"}
             </span>
           </div>
           <div className="flex flex-wrap gap-2">
-            {items.map((i) => {
-              const course = allCourses.find((c) => c.id === i.course_id);
+            {checklist.map(({ course, done }) => {
               if (!course) return null;
               return (
-                <form key={i.id} action={toggleItemDone}>
+                <form key={course.id} action={toggleItemDone}>
                   <input type="hidden" name="student_id" value={student.id} />
-                  <input type="hidden" name="course_id" value={i.course_id} />
+                  <input type="hidden" name="course_id" value={course.id} />
                   <button
                     className="rounded-xl border px-3 py-2 text-sm font-semibold transition"
                     style={{
-                      borderColor: i.done ? info2.color : "var(--hairline)",
-                      background: i.done ? `${info2.color}18` : "transparent",
-                      color: i.done ? info2.color : "var(--text-secondary)",
+                      borderColor: done ? info2.color : "var(--hairline)",
+                      background: done ? `${info2.color}18` : "transparent",
+                      color: done ? info2.color : "var(--text-secondary)",
                     }}
+                    title={[course.subject, course.kind, course.mastery && `ضبطه: ${course.mastery}`]
+                      .filter(Boolean)
+                      .join(" · ")}
                   >
-                    {i.done ? "✓" : "○"} {course.name}
+                    {done ? "✓" : "○"} {course.name}
                   </button>
                 </form>
               );
@@ -155,17 +179,19 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         </div>
       )}
 
-      {picks.length > 0 && (
+      {timeline && picks.length > 0 && (
         <div className="card p-5">
           <h2 className="mb-3 font-bold">مقررات الخطة</h2>
           <CourseSummary courses={allCourses} picks={picks} cadence={cadence} />
         </div>
       )}
 
-      <div className="card">
-        <h2 className="p-4 pb-0 font-bold">جدول الخطة</h2>
-        <PlanTable courses={allCourses} picks={picks} cadence={cadence} />
-      </div>
+      {timeline && (
+        <div className="card">
+          <h2 className="p-4 pb-0 font-bold">جدول الخطة</h2>
+          <PlanTable courses={allCourses} picks={picks} cadence={cadence} />
+        </div>
+      )}
 
       <form action={updateStudentNotes} className="card grid gap-3 p-5">
         <input type="hidden" name="id" value={student.id} />
@@ -179,8 +205,7 @@ export default async function StudentPage({ params }: { params: Promise<{ id: st
         <div className="min-w-0">
           <div className="font-bold">حذف الطالب وخطته</div>
           <p className="mt-1 text-xs" style={{ color: "var(--text-muted)" }}>
-            يمسح الطالب وخطته كاملة ولا يمكن التراجع. رابط خطته يتوقف عن العمل، وإن أراد خطة
-            جديدة يسجّل من رابط التسجيل من جديد.
+            يمسح الطالب وكل ما سُجّل له ولا يمكن التراجع، ورابطه يتوقف عن العمل.
           </p>
         </div>
         <ConfirmButton

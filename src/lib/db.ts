@@ -70,6 +70,8 @@ const SCHEMA = `
   ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done BOOLEAN NOT NULL DEFAULT FALSE;
   ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done_at TIMESTAMPTZ;
   CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
+  CREATE UNIQUE INDEX IF NOT EXISTS plan_items_student_course_idx
+    ON plan_items (student_id, course_id);
 `;
 
 

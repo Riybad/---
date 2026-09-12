@@ -16,7 +16,7 @@ import {
 } from "@/lib/plan";
 import { cadenceInfo } from "@/lib/calendar";
 import type { Cadence } from "@/lib/calendar";
-import { parseTrack, PUBLIC_TRACK, trackInfo, type TrackKey } from "@/lib/tracks";
+import { hasTimeline, parseTrack, PUBLIC_TRACK, trackInfo, type TrackKey } from "@/lib/tracks";
 
 /* ————— خطة الطالب (من الرابط العام) ————— */
 
@@ -229,14 +229,15 @@ export async function createStudent(
   const raw = String(formData.get("picks") ?? "[]");
   const picks = parsePicks(raw, periodCount(cadence));
 
-  // «قسّم له الآن»: توزيع مبدئي على مقررات مساره يعدّله المشرف بعدها
+  // «قسّم له الآن»: توزيع مبدئي على مقررات مساره يعدّله المشرف بعدها.
+  // المسار بلا جدول زمني لا يُقسَّم أصلًا — مقرراته قائمة تُنجَز.
   let checked: SubmittedPick[] = [];
-  if (String(formData.get("mode") ?? "") === "plan" && picks.length === 0) {
+  if (hasTimeline(track) && String(formData.get("mode") ?? "") === "plan" && picks.length === 0) {
     const trackCourses = await listCourses(false, track);
     picks.push(...picksFromWeeks(trackCourses, defaultWeeks(trackCourses, cadence), cadence));
   }
   // خطة فارغة مقصودة: يُنشأ الطالب ليقسّم له المشرف لاحقًا أو يقسّم هو من رابطه
-  if (picks.length > 0) {
+  if (hasTimeline(track) && picks.length > 0) {
     const result = await validatePlan(picks, cadence, track, { requireAll: false });
     if (typeof result === "string") return result;
     checked = result;
@@ -318,7 +319,7 @@ export async function createStudents(_prev: BulkResult, formData: FormData): Pro
   )) as { id: number }[];
 
   // «قسّم لهم الآن»: التوزيع نفسه للجميع، يعدّله المشرف لكل طالب بعدها
-  if (String(formData.get("mode") ?? "") === "plan") {
+  if (hasTimeline(track) && String(formData.get("mode") ?? "") === "plan") {
     const courses = await listCourses(false, track);
     const picks = picksFromWeeks(courses, defaultWeeks(courses, cadence), cadence);
     if (picks.length > 0) {
@@ -368,6 +369,8 @@ export async function updateStudent(
   if (oldTrack !== track) {
     // مقررات المسارين مختلفة، فخطته القديمة لا تصلح للمسار الجديد
     await replacePlanItems(id, []);
+  } else if (!hasTimeline(track)) {
+    // بلا جدول زمني: لا مدد تُعاد ولا فترات تُحسب
   } else if (oldCadence !== cadence) {
     // تغيير وحدة العرض يغيّر عدد الفترات، فتُعاد الخطة إلى الحدود الجديدة
     const items = await listPlanItems(id);
@@ -427,6 +430,9 @@ export async function updatePlan(
 
   const cadence = ((rows[0].cadence as string) || "weekly") as Cadence;
   const track = parseTrack(rows[0].track);
+  if (!hasTimeline(track)) {
+    return `${trackInfo(track).name} بلا جدول زمني — مقرراتها قائمة تُنجَز، وتُسجَّل من شاشة الإنجاز`;
+  }
   const raw = String(formData.get("picks") ?? "[]");
   const picks = parsePicks(raw, periodCount(cadence));
 
@@ -480,16 +486,21 @@ export async function saveProgress(
     parsePairs(formData.getAll("done").map(String)).map(([s, c]) => `${s}:${c}`)
   );
 
+  // المسار بلا جدول زمني لا بنود خطة له أصلًا، فيُنشأ البند عند أول تأشير
   const values = scope
     .map((_, i) => `($${i * 3 + 1}::int, $${i * 3 + 2}::int, $${i * 3 + 3}::boolean)`)
     .join(", ");
   await q(
-    `UPDATE plan_items AS p
-        SET done = v.done,
-            done_at = CASE WHEN v.done THEN COALESCE(p.done_at, now()) ELSE NULL END
+    `INSERT INTO plan_items (student_id, course_id, done, done_at)
+     SELECT v.sid, v.cid, v.done, CASE WHEN v.done THEN now() END
        FROM (VALUES ${values}) AS v(sid, cid, done)
-      WHERE p.student_id = v.sid AND p.course_id = v.cid
-        AND p.done IS DISTINCT FROM v.done`,
+     ON CONFLICT (student_id, course_id) DO UPDATE
+        SET done = EXCLUDED.done,
+            done_at = CASE
+              WHEN EXCLUDED.done THEN COALESCE(plan_items.done_at, now())
+              ELSE NULL
+            END
+      WHERE plan_items.done IS DISTINCT FROM EXCLUDED.done`,
     scope.flatMap(([sid, cid]) => [sid, cid, done.has(`${sid}:${cid}`)])
   );
 
@@ -504,10 +515,11 @@ export async function toggleItemDone(formData: FormData): Promise<void> {
   const courseId = Number(formData.get("course_id") ?? 0);
   if (studentId <= 0 || courseId <= 0) return;
   await q(
-    `UPDATE plan_items
-        SET done = NOT done,
-            done_at = CASE WHEN done THEN NULL ELSE now() END
-      WHERE student_id = $1 AND course_id = $2`,
+    `INSERT INTO plan_items (student_id, course_id, done, done_at)
+     VALUES ($1, $2, TRUE, now())
+     ON CONFLICT (student_id, course_id) DO UPDATE
+        SET done = NOT plan_items.done,
+            done_at = CASE WHEN plan_items.done THEN NULL ELSE now() END`,
     [studentId, courseId]
   );
   revalidatePath("/", "layout");
