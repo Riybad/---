@@ -74,6 +74,101 @@ function planRows(courses: Course[], picks: Pick[], cadence: Cadence): (string |
 
 const PLAN_WIDTHS = [8, 26, 14, 14, 26, 14, 16, 14, 12, 14, 24];
 
+/* ————— المسار بلا جدول زمني: قائمة مقررات تُنجَز ————— */
+
+const CHECKLIST_HEAD = [
+  "الفرع",
+  "المقرر",
+  "النوع",
+  "معيار الضبط",
+  "حجم الحفظ",
+  "وحدة الحفظ",
+  "حجم القراءة",
+  "وحدة القراءة",
+  "الحالة",
+];
+const CHECKLIST_WIDTHS = [18, 34, 12, 14, 12, 12, 12, 12, 14];
+
+function checklistRow(c: Course, done: boolean): (string | number)[] {
+  return [
+    c.subject || "—",
+    c.name,
+    c.kind || "—",
+    c.mastery || "—",
+    memoTotal(c) || "—",
+    c.has_memo ? memoUnit(c) : "—",
+    explTotal(c) || "—",
+    c.has_expl ? c.unit : "—",
+    done ? "أنهاه" : "لم ينهه بعد",
+  ];
+}
+
+/** ملف طالب في مسار بلا جدول زمني: بياناته ومقرراته وما أنجزه */
+export function checklistWorkbook(
+  student: Student,
+  courses: Course[],
+  done: Set<number>
+): Buffer {
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+
+  const rows: (string | number)[][] = [
+    ["الطالب", student.name],
+    ["المسار", trackInfo(student.track).name],
+    ["الجوال", student.phone || "—"],
+    ["ملاحظات", student.notes || "—"],
+    ["المنجَز", `${courses.filter((c) => done.has(c.id)).length} من ${courses.length}`],
+    [],
+    CHECKLIST_HEAD,
+  ];
+  for (const c of courses) rows.push(checklistRow(c, done.has(c.id)));
+
+  XLSX.utils.book_append_sheet(wb, sheet(rows, CHECKLIST_WIDTHS), "المقررات والإنجاز");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
+/** ملف طلاب مسار بلا جدول زمني: من أنهى ماذا */
+export function trackChecklistWorkbook(
+  entries: { student: Student; done: Set<number> }[],
+  courses: Course[]
+): Buffer {
+  const wb = XLSX.utils.book_new();
+  wb.Workbook = { Views: [{ RTL: true }] };
+
+  // ورقة الطلاب: عمود لكل مقرر ✓ أو —
+  const board: (string | number)[][] = [
+    ["م", "الطالب", "الجوال", "المنجَز", ...courses.map((c) => c.name), "ملاحظات"],
+  ];
+  entries.forEach(({ student, done }, i) => {
+    board.push([
+      i + 1,
+      student.name,
+      student.phone || "—",
+      `${courses.filter((c) => done.has(c.id)).length} من ${courses.length}`,
+      ...courses.map((c) => (done.has(c.id) ? "✓" : "—")),
+      student.notes || "",
+    ]);
+  });
+
+  // ورقة تفصيلية: صف لكل طالب ومقرر
+  const detail: (string | number)[][] = [["الطالب", ...CHECKLIST_HEAD]];
+  for (const { student, done } of entries) {
+    for (const c of courses) detail.push([student.name, ...checklistRow(c, done.has(c.id))]);
+  }
+
+  const courseSheet: (string | number)[][] = [CHECKLIST_HEAD.slice(0, -1)];
+  for (const c of courses) courseSheet.push(checklistRow(c, false).slice(0, -1));
+
+  XLSX.utils.book_append_sheet(
+    wb,
+    sheet(board, [6, 26, 14, 12, ...courses.map(() => 16), 30]),
+    "الإنجاز"
+  );
+  XLSX.utils.book_append_sheet(wb, sheet(detail, [26, ...CHECKLIST_WIDTHS]), "تفصيل الإنجاز");
+  XLSX.utils.book_append_sheet(wb, sheet(courseSheet, CHECKLIST_WIDTHS.slice(0, -1)), "المقررات");
+  return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+}
+
 /** ملف خطة طالب واحد */
 export function studentWorkbook(student: Student, courses: Course[], picks: Pick[]): Buffer {
   const wb = XLSX.utils.book_new();

@@ -24,16 +24,25 @@ export default async function ProgressPage({
 
   // المقررات الموقوفة تظهر إن كانت في خطة طالب، وإلا فلا تزحم الجدول
   const inPlans = new Set([...items.values()].flat().map((i) => i.course_id));
-  const columns = courses
-    .filter((c) => c.active || inPlans.has(c.id))
-    .map((c) => ({ id: c.id, name: c.name }));
+  const active = courses.filter((c) => c.active || inPlans.has(c.id));
+  const columns = active.map((c) => ({ id: c.id, name: c.name }));
 
+  /**
+   * المسار بلا جدول زمني: مقرراته كلها مطلوبة من كل طالب، فلكلٍّ مربّع
+   * وإن لم يُسجَّل له بند بعد. أما ذو الجدول فلا مربّع إلا لما في خطته.
+   */
+  const open = !info.timeline;
   const rows: ProgressRow[] = students
-    .map((s) => ({
-      id: s.id,
-      name: s.name,
-      items: (items.get(s.id) ?? []).map((i) => ({ courseId: i.course_id, done: i.done })),
-    }))
+    .map((s) => {
+      const doneOf = new Map((items.get(s.id) ?? []).map((i) => [i.course_id, i.done]));
+      return {
+        id: s.id,
+        name: s.name,
+        items: open
+          ? active.map((c) => ({ courseId: c.id, done: doneOf.get(c.id) ?? false }))
+          : [...doneOf].map(([courseId, done]) => ({ courseId, done })),
+      };
+    })
     // الذين بلا خطة أسفل القائمة: لا مربّعات لهم
     .sort((a, b) => (b.items.length > 0 ? 1 : 0) - (a.items.length > 0 ? 1 : 0));
 
@@ -46,8 +55,8 @@ export default async function ProgressPage({
             سجّل من أنهى كل مقرر — كل مسار في شاشته ومقرراته.
           </p>
         </div>
-        <a className="btn btn-ghost ms-auto text-sm" href={`/api/export/khitta`}>
-          تصدير كل الخطط
+        <a className="btn btn-ghost ms-auto text-sm" href={`/api/export/khitta?track=${track}`}>
+          تصدير إنجاز {info.name}
         </a>
       </div>
 

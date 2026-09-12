@@ -38,9 +38,15 @@ export default async function StudentsPage({
           <Link className="btn btn-primary text-sm" href="/students/new">
             + إضافة طالب
           </Link>
-          <a className="btn btn-ghost text-sm" href="/api/export/khitta">
-            تصدير كل الخطط
-          </a>
+          {(track ? TRACKS.filter((t) => t.key === track) : TRACKS).map((t) => (
+            <a
+              key={t.key}
+              className="btn btn-ghost text-sm"
+              href={`/api/export/khitta?track=${t.key}`}
+            >
+              تصدير {t.name}
+            </a>
+          ))}
         </div>
       </div>
 
@@ -91,7 +97,7 @@ export default async function StudentsPage({
                 <th>المسار</th>
                 <th>الجوال</th>
                 <th>الوحدة</th>
-                <th>المقررات</th>
+                <th>مقرراته</th>
                 <th>المنجَز</th>
                 <th>التاريخ</th>
                 <th>الخطة</th>
@@ -135,12 +141,20 @@ export default async function StudentsPage({
                     </Link>
                   </td>
                   <td className="whitespace-nowrap">
-                    <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
-                      قالب
-                    </a>{" "}
-                    <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
-                      تفصيلي
-                    </a>
+                    {t.timeline ? (
+                      <>
+                        <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
+                          قالب
+                        </a>{" "}
+                        <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}?format=table`}>
+                          تفصيلي
+                        </a>
+                      </>
+                    ) : (
+                      <a className="btn btn-ghost px-2 py-1 text-xs" href={`/api/export/khitta/${s.token}`}>
+                        مقرراته
+                      </a>
+                    )}
                   </td>
                   <td>
                     <form action={deleteStudent}>
