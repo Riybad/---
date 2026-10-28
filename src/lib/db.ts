@@ -69,6 +69,23 @@ const SCHEMA = `
   CREATE INDEX IF NOT EXISTS students_track_idx ON students (track);
   ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done BOOLEAN NOT NULL DEFAULT FALSE;
   ALTER TABLE plan_items ADD COLUMN IF NOT EXISTS done_at TIMESTAMPTZ;
+  CREATE TABLE IF NOT EXISTS performance (
+    id SERIAL PRIMARY KEY,
+    student_id INTEGER NOT NULL REFERENCES students(id) ON DELETE CASCADE,
+    /* ترتيب الشهر في سنة الخطة: 1 إلى 13 */
+    month INTEGER NOT NULL,
+    /* quran أو memo أو expl */
+    part TEXT NOT NULL,
+    /* فارغ للقرآن، ومعرّف المقرر لما سواه */
+    course_id INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+    /* المفترض اليدوي — للقرآن ولمسار بلا جدول، وإلا فيُشتقّ من الخطة */
+    planned INTEGER NOT NULL DEFAULT 0,
+    actual INTEGER NOT NULL DEFAULT 0,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS performance_key
+    ON performance (student_id, month, part, COALESCE(course_id, 0));
+  CREATE INDEX IF NOT EXISTS performance_month_idx ON performance (month);
   CREATE INDEX IF NOT EXISTS plan_items_student_idx ON plan_items (student_id);
   CREATE UNIQUE INDEX IF NOT EXISTS plan_items_student_course_idx
     ON plan_items (student_id, course_id);
@@ -253,6 +270,16 @@ export type PlanItem = {
   /** هل أنهى الطالب هذا المقرر — يسجّله المشرف */
   done: boolean;
   done_at: Date | null;
+};
+
+export type PerformanceRow = {
+  id: number;
+  student_id: number;
+  month: number;
+  part: string;
+  course_id: number | null;
+  planned: number;
+  actual: number;
 };
 
 /** رمز الرابط الخاص بخطة الطالب */
