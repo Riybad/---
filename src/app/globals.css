@@ -218,6 +218,36 @@ body {
 .table tr:last-child td {
   border-bottom: none;
 }
+/* جدول القياس: الطلاب تحت بعض، ولكلٍّ بنوده — التظليل من الصفوف لا من نمط الجدول */
+.table.qiyas tbody tr:nth-child(even) td {
+  background: inherit;
+}
+.table.qiyas td {
+  padding-block: 0.4rem;
+}
+.table.qiyas thead th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+/* عمود الطالب بعرض اسمه، واسم البند لا ينكسر، والحقول بعرض رقمها */
+.table.qiyas .sticky-col {
+  width: 1%;
+  white-space: nowrap;
+}
+.table.qiyas .qiyas-item {
+  white-space: nowrap;
+}
+.table.qiyas .qiyas-num {
+  width: 5.5rem;
+  margin-inline: auto;
+  padding-inline: 0.4rem;
+}
+.table.qiyas .qiyas-add {
+  width: 100%;
+  max-width: 11rem;
+}
+
 /* عمود الطالب يبقى ظاهرًا أثناء سحب جدول الإنجاز عرضًا */
 .table .sticky-col {
   position: sticky;

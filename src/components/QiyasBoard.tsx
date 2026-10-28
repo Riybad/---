@@ -21,13 +21,13 @@ export type QiyasStudent = {
   id: number;
   name: string;
   metrics: QiyasMetric[];
-  /** مقررات يمكن إضافتها لهذا الشهر: [المعرّف، الاسم، الوحدة] لكل مسار */
+  /** بنود يمكن إضافتها لهذا الشهر */
   addable: { key: string; label: string; unit: string }[];
 };
 
 type Row = QiyasMetric & { key: string };
 
-/** قياس أداء شهر: المفترض والفعلي لكل طالب، في القرآن والمتون */
+/** قياس أداء شهر: الطلاب كلهم في جدول واحد، صفٌّ لكل بند */
 export default function QiyasBoard({
   track,
   month,
@@ -92,67 +92,80 @@ export default function QiyasBoard({
       <input type="hidden" name="month" value={month} />
       <input type="hidden" name="scope" value={scope} />
 
-      <div className="grid gap-4">
-        {students.map((s) => {
-          const rows = rowsOf(s);
-          const totalPlanned = rows.reduce((a, r) => a + (r.planned ?? r.savedPlanned), 0);
-          const totalActual = rows.reduce((a, r) => a + r.actual, 0);
-          const pct = ratio(totalPlanned, totalActual);
-          return (
-            <div key={s.id} className="card p-4" style={{ borderTop: `3px solid ${track.color}` }}>
-              <div className="mb-3 flex flex-wrap items-baseline gap-2">
-                <Link href={`/students/${s.id}`} className="font-bold hover:underline">
-                  {s.name}
-                </Link>
-                {pct !== null && (
-                  <span
-                    className="rounded-md px-2 py-0.5 text-xs font-bold"
-                    style={{
-                      background: pct >= 100 ? "var(--good-bg)" : `${track.color}1a`,
-                      color: pct >= 100 ? "var(--good-text)" : track.color,
-                    }}
-                  >
-                    {pct}%
-                  </span>
-                )}
-                {s.addable.length > 0 && (
-                  <select
-                    className="input ms-auto w-auto text-xs"
-                    value=""
-                    onChange={(e) => addRow(s, e.target.value)}
-                    aria-label={`أضف بندًا لـ${s.name}`}
-                  >
-                    <option value="">+ أضف بندًا…</option>
-                    {s.addable.map((a) => (
-                      <option key={a.key} value={a.key}>
-                        {a.label}
-                      </option>
-                    ))}
-                  </select>
-                )}
-              </div>
-
-              <div className="overflow-x-auto">
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th className="text-start">البند</th>
-                      <th>الوحدة</th>
-                      <th className="text-center">المفترض</th>
-                      <th className="text-center">الفعلي</th>
-                      <th className="text-center">النسبة</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {rows.map((r) => (
-                      <QiyasRow key={r.key} row={r} color={track.color} />
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          );
-        })}
+      <div className="card">
+        <div className="overflow-x-auto">
+          <table className="table qiyas">
+            <thead>
+              <tr>
+                <th className="sticky-col text-start">الطالب</th>
+                <th className="text-start">البند</th>
+                <th>الوحدة</th>
+                <th className="text-center">المفترض</th>
+                <th className="text-center">الفعلي</th>
+                <th className="text-center">النسبة</th>
+              </tr>
+            </thead>
+            {students.map((s, i) => {
+              const rows = rowsOf(s);
+              const totalPlanned = rows.reduce((a, r) => a + (r.planned ?? r.savedPlanned), 0);
+              const totalActual = rows.reduce((a, r) => a + r.actual, 0);
+              const pct = ratio(totalPlanned, totalActual);
+              // تظليل متناوب لكل طالب ليُفصَل عمّن قبله مهما طالت بنوده
+              const band = i % 2 === 1 ? "var(--surface-stripe)" : undefined;
+              return (
+                <tbody key={s.id} style={{ borderTop: `2px solid ${track.color}33` }}>
+                  {rows.map((r, j) => (
+                    <QiyasRow
+                      key={r.key}
+                      row={r}
+                      color={track.color}
+                      band={band}
+                      lead={
+                        j > 0 ? null : (
+                          <td
+                            rowSpan={rows.length}
+                            className="sticky-col align-top"
+                            style={band ? { background: band } : undefined}
+                          >
+                            <Link
+                              href={`/students/${s.id}`}
+                              className="whitespace-nowrap font-bold hover:underline"
+                            >
+                              {s.name}
+                            </Link>
+                            {pct !== null && (
+                              <div
+                                className="mt-1 text-xs font-bold num"
+                                style={{ color: pct >= 100 ? "var(--good-text)" : track.color }}
+                              >
+                                {pct}%
+                              </div>
+                            )}
+                            {s.addable.length > 0 && (
+                              <select
+                                className="input qiyas-add mt-2 px-1 py-1 text-[11px]"
+                                value=""
+                                onChange={(e) => addRow(s, e.target.value)}
+                                aria-label={`أضف بندًا لـ${s.name}`}
+                              >
+                                <option value="">+ بند…</option>
+                                {s.addable.map((a) => (
+                                  <option key={a.key} value={a.key}>
+                                    {a.label}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </td>
+                        )
+                      }
+                    />
+                  ))}
+                </tbody>
+              );
+            })}
+          </table>
+        </div>
       </div>
 
       <div className="card flex flex-wrap items-center gap-3 p-4">
@@ -177,18 +190,32 @@ export default function QiyasBoard({
   );
 }
 
-function QiyasRow({ row, color }: { row: Row; color: string }) {
+function QiyasRow({
+  row,
+  color,
+  band,
+  lead,
+}: {
+  row: Row;
+  color: string;
+  band?: string;
+  lead: React.ReactNode;
+}) {
   const fromPlan = row.planned !== undefined;
   const [actual, setActual] = useState(row.actual || 0);
   const [planned, setPlanned] = useState(row.savedPlanned || 0);
   const effective = fromPlan ? row.planned! : planned;
   const pct = ratio(effective, actual);
+  const cell = band ? { background: band } : undefined;
 
   return (
     <tr>
-      <td className="font-semibold">{row.label}</td>
-      <td style={{ color: "var(--text-muted)" }}>{row.unit}</td>
-      <td className="text-center">
+      {lead}
+      <td className="qiyas-item font-semibold" style={cell}>
+        {row.label}
+      </td>
+      <td style={{ ...cell, color: "var(--text-muted)" }}>{row.unit}</td>
+      <td className="text-center" style={cell}>
         {fromPlan ? (
           <>
             <input type="hidden" name={`p:${row.key}`} value={row.planned} />
@@ -201,31 +228,29 @@ function QiyasRow({ row, color }: { row: Row; color: string }) {
             name={`p:${row.key}`}
             type="number"
             min={0}
-            className="input num mx-auto w-20 text-center"
+            className="input num qiyas-num text-center"
             value={planned || ""}
             onChange={(e) => setPlanned(Number(e.target.value) || 0)}
             placeholder="0"
           />
         )}
       </td>
-      <td className="text-center">
+      <td className="text-center" style={cell}>
         <input
           name={`a:${row.key}`}
           type="number"
           min={0}
-          className="input num mx-auto w-20 text-center"
+          className="input num qiyas-num text-center"
           value={actual || ""}
           onChange={(e) => setActual(Number(e.target.value) || 0)}
           placeholder="0"
         />
       </td>
-      <td className="text-center num">
+      <td className="text-center num" style={cell}>
         {pct === null ? (
           <span style={{ color: "var(--text-muted)" }}>—</span>
         ) : (
-          <span
-            style={{ color: pct >= 100 ? "var(--good-text)" : color, fontWeight: 700 }}
-          >
+          <span style={{ color: pct >= 100 ? "var(--good-text)" : color, fontWeight: 700 }}>
             {pct}%
           </span>
         )}
