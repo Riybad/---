@@ -1,4 +1,4 @@
-import { q, type Student, type PlanItem } from "./db";
+import { q, type Student, type PlanItem, type PerformanceRow } from "./db";
 import type { Course, Pick } from "./plan";
 import type { TrackKey } from "./tracks";
 
@@ -91,6 +91,27 @@ export async function progressCounts(): Promise<Map<number, { done: number; tota
        FROM plan_items GROUP BY student_id`
   )) as { student_id: number; total: number; done: number }[];
   return new Map(rows.map((r) => [r.student_id, { done: r.done, total: r.total }]));
+}
+
+/** سجلّ قياس الأداء لشهر واحد — مفتاحه معرّف الطالب */
+export async function performanceOfMonth(
+  month: number,
+  track?: TrackKey
+): Promise<Map<number, PerformanceRow[]>> {
+  const rows = (await q(
+    `SELECT f.* FROM performance f
+       JOIN students s ON s.id = f.student_id
+      WHERE f.month = $1${track ? " AND s.track = $2" : ""}
+      ORDER BY f.student_id, f.part, f.course_id`,
+    track ? [month, track] : [month]
+  )) as PerformanceRow[];
+  const map = new Map<number, PerformanceRow[]>();
+  for (const r of rows) {
+    const list = map.get(r.student_id);
+    if (list) list.push(r);
+    else map.set(r.student_id, [r]);
+  }
+  return map;
 }
 
 export function toPicks(items: PlanItem[]): Pick[] {

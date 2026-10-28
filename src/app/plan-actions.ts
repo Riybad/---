@@ -525,6 +525,68 @@ export async function toggleItemDone(formData: FormData): Promise<void> {
   revalidatePath("/", "layout");
 }
 
+/* ————— قياس الأداء: المفترض والفعلي ————— */
+
+/**
+ * يحفظ شاشة قياس شهر كاملة.
+ * «scope» كل البنود المعروضة بصيغة «طالب:مسار:مقرر»، ولكل بند حقلان:
+ * «p:<البند>» المفترض و«a:<البند>» الفعلي. البند يُحفظ ولو بصفرين،
+ * فالصفّ الذي أضافه المشرف يبقى في الشهر القادم من فتحه.
+ */
+export async function saveQiyas(
+  _prev: string | null,
+  formData: FormData
+): Promise<string | null> {
+  await requireAdmin();
+  const month = Math.trunc(Number(formData.get("month") ?? 0));
+  if (month < 1 || month > 13) return "الشهر غير صحيح";
+
+  const PARTS = ["quran", "memo", "expl"];
+  const rows: { sid: number; part: string; cid: number | null; planned: number; actual: number }[] =
+    [];
+  const seen = new Set<string>();
+  const num = (key: string) => {
+    const n = Math.trunc(Number(formData.get(key) ?? 0));
+    return Number.isFinite(n) && n > 0 ? Math.min(n, 1_000_000) : 0;
+  };
+
+  for (const raw of String(formData.get("scope") ?? "").split(",").filter(Boolean)) {
+    const [a, part, c] = raw.split(":");
+    const sid = Math.trunc(Number(a));
+    const cid = part === "quran" ? null : Math.trunc(Number(c));
+    if (sid <= 0 || !PARTS.includes(part)) continue;
+    if (part !== "quran" && (!cid || cid <= 0)) continue;
+    const key = `${sid}:${part}:${cid ?? 0}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ sid, part, cid, planned: num(`p:${raw}`), actual: num(`a:${raw}`) });
+  }
+  if (rows.length === 0) return null;
+
+  const values = rows
+    .map((_, i) => {
+      const b = i * 5;
+      return `($${b + 1}::int, $${b + 2}::int, $${b + 3}::text, $${b + 4}::int, $${b + 5}::int)`;
+    })
+    .join(", ");
+  await q(
+    `INSERT INTO performance (student_id, month, part, course_id, planned, actual)
+     SELECT v.sid, $${rows.length * 5 + 1}::int, v.part, v.cid, v.planned, v.actual
+       FROM (VALUES ${values}) AS v(sid, cid, part, planned, actual)
+     ON CONFLICT (student_id, month, part, COALESCE(course_id, 0)) DO UPDATE
+        SET planned = EXCLUDED.planned,
+            actual = EXCLUDED.actual,
+            updated_at = now()`,
+    [
+      ...rows.flatMap((r) => [r.sid, r.cid, r.part, r.planned, r.actual]),
+      month,
+    ]
+  );
+
+  revalidatePath("/", "layout");
+  return null;
+}
+
 /* ————— إدارة المقررات (اللوحة) ————— */
 
 const EXPL_LABELS = ["شرح", "قراءة"];
