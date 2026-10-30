@@ -232,20 +232,78 @@ body {
 }
 /* عمود الطالب بعرض اسمه، واسم البند لا ينكسر، والحقول بعرض رقمها */
 .table.qiyas .sticky-col {
-  width: 1%;
   white-space: nowrap;
+}
+/* نسبة الطالب آخر عمود، مثبّتة على الطرف فتبقى ظاهرة مهما سُحب الجدول */
+.table.qiyas .qiyas-total {
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 2;
+  background: var(--surface-1);
+  box-shadow: -1px 0 0 var(--hairline) inset;
+}
+.table.qiyas thead .qiyas-total {
+  z-index: 4;
+  background: var(--table-head);
+}
+.table.qiyas tfoot .qiyas-foot td.qiyas-total {
+  background: var(--surface-stripe);
+}
+/* العمود المثبّت خلفيّته معتمة دائمًا، ولون النسبة على قرصٍ داخله */
+.table.qiyas td.qiyas-total {
+  padding: 0;
+}
+.table.qiyas .qiyas-pill {
+  display: block;
+  padding: 0.55rem 0.5rem;
+  min-width: 3.4rem;
 }
 .table.qiyas .qiyas-item {
   white-space: nowrap;
 }
 .table.qiyas .qiyas-num {
-  width: 5.5rem;
+  width: 3.9rem;
   margin-inline: auto;
-  padding-inline: 0.4rem;
+  padding-inline: 0.25rem;
 }
-.table.qiyas .qiyas-add {
-  width: 100%;
-  max-width: 11rem;
+/* ألوان نسب القياس: جيّد وتنبيه وضعيف — حدودها يضبطها المشرف */
+.g-good { background: #d7e8c4; color: #35431a; }
+.g-warn { background: #fbf0b4; color: #6f5300; }
+.g-bad  { background: #f6c3bd; color: #8d241a; }
+.g-none { color: var(--text-muted); }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .g-good { background: #2c3c1c; color: #bcdc9d; }
+  :root:not([data-theme="light"]) .g-warn { background: #413612; color: #ead482; }
+  :root:not([data-theme="light"]) .g-bad  { background: #44201c; color: #eaa9a0; }
+}
+
+/* مصفوفة التقييم: ترويسة ثلاثية، وحدود تفصل المحاور والبنود */
+.table.qiyas th,
+.table.qiyas td {
+  border-inline-start: 1px solid var(--hairline);
+  font-size: 0.78rem;
+}
+.table.qiyas .qiyas-sub {
+  font-size: 0.68rem;
+  font-weight: 600;
+  padding-inline: 0.3rem;
+}
+.table.qiyas .qiyas-off {
+  color: var(--text-muted);
+  background: var(--surface-stripe);
+}
+.table.qiyas .qiyas-group,
+.table.qiyas .qiyas-total {
+  border-inline-start-width: 2px;
+  border-inline-start-color: var(--text-muted);
+}
+.table.qiyas tfoot .qiyas-foot td {
+  background: var(--surface-stripe);
+  border-top: 2px solid var(--text-muted);
+  font-weight: 700;
+}
+.table.qiyas tfoot .qiyas-foot td.sticky-col {
+  background: var(--surface-stripe);
 }
 
 /* عمود الطالب يبقى ظاهرًا أثناء سحب جدول الإنجاز عرضًا */

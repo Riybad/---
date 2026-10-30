@@ -93,6 +93,12 @@ export async function progressCounts(): Promise<Map<number, { done: number; tota
   return new Map(rows.map((r) => [r.student_id, { done: r.done, total: r.total }]));
 }
 
+/** إعدادات اللوحة: مفاتيح ونصوص */
+export async function getSettings(): Promise<Record<string, string>> {
+  const rows = (await q("SELECT key, value FROM settings")) as { key: string; value: string }[];
+  return Object.fromEntries(rows.map((r) => [r.key, r.value]));
+}
+
 /** سجلّ قياس الأداء لشهر واحد — مفتاحه معرّف الطالب */
 export async function performanceOfMonth(
   month: number,

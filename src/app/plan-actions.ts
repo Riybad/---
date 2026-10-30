@@ -587,6 +587,24 @@ export async function saveQiyas(
   return null;
 }
 
+/** يضبط حدّي لون النسبة: ما فوق الأخضر جيّد، وما دون الأصفر ضعيف */
+export async function saveThresholds(formData: FormData): Promise<void> {
+  await requireAdmin();
+  const clamp = (v: unknown, fallback: number) => {
+    const n = Math.trunc(Number(v));
+    return Number.isFinite(n) && n >= 1 && n <= 200 ? n : fallback;
+  };
+  const green = clamp(formData.get("green"), 85);
+  // حدّ الأصفر لا يتجاوز الأخضر وإلا اختفى اللون الأوسط
+  const amber = Math.min(clamp(formData.get("amber"), 60), green);
+  await q(
+    `INSERT INTO settings (key, value) VALUES ('qiyas_green', $1), ('qiyas_amber', $2)
+     ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value`,
+    [String(green), String(amber)]
+  );
+  revalidatePath("/", "layout");
+}
+
 /* ————— إدارة المقررات (اللوحة) ————— */
 
 const EXPL_LABELS = ["شرح", "قراءة"];

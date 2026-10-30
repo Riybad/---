@@ -108,3 +108,28 @@ export function ratio(planned: number, actual: number): number | null {
   if (planned <= 0) return null;
   return Math.round((actual / planned) * 100);
 }
+
+/* ————— حدود ألوان النسب — يضبطها المشرف ————— */
+
+export type Thresholds = { green: number; amber: number };
+export const DEFAULT_THRESHOLDS: Thresholds = { green: 85, amber: 60 };
+
+export type Grade = "good" | "warn" | "bad" | "none";
+
+export function gradeOf(pct: number | null, t: Thresholds): Grade {
+  if (pct === null) return "none";
+  if (pct >= t.green) return "good";
+  if (pct >= t.amber) return "warn";
+  return "bad";
+}
+
+/**
+ * نسبة المحور: متوسط نسب بنوده لا مجموعها.
+ * وحدات البنود تختلف (بيت وسطر وصفحة) فلا يصحّ جمعها، أما نسبها
+ * فمقارنة بلا وحدة — ولذلك تُجمع وتُقسَّم على عددها.
+ */
+export function averageRatio(parts: (number | null)[]): number | null {
+  const known = parts.filter((p): p is number => p !== null);
+  if (known.length === 0) return null;
+  return Math.round(known.reduce((a, n) => a + n, 0) / known.length);
+}
