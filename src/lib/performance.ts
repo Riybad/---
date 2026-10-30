@@ -64,6 +64,25 @@ export function plannedForMonth(
   return out;
 }
 
+/** ما توجبه خطة الطالب في السنة كلّها — مجموع أشهرها */
+export function plannedForYear(
+  courses: Course[],
+  picks: Pick[],
+  cadence: Cadence
+): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const row of buildSchedule(courses, picks, cadence)) {
+    for (const p of row.portions) {
+      const add = (key: string, n: number) => {
+        if (n > 0) out.set(key, (out.get(key) ?? 0) + n);
+      };
+      if (p.memoTo > 0) add(`memo:${p.course.id}`, p.memoTo - p.memoFrom + 1);
+      if (p.explTo > 0) add(`expl:${p.course.id}`, p.explTo - p.explFrom + 1);
+    }
+  }
+  return out;
+}
+
 /** بنود طالب في شهر: القرآن دائمًا، ثم ما توجبه خطته (أو ما سُجّل له) */
 export function metricsFor(
   courses: Course[],

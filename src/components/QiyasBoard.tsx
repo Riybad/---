@@ -56,6 +56,7 @@ export default function QiyasBoard({
   students,
   addable,
   thresholds,
+  readOnly = false,
 }: {
   track: Track;
   month: number;
@@ -65,6 +66,8 @@ export default function QiyasBoard({
   /** أعمدة يضيفها المشرف لكل الطلاب — لمسار بلا جدول، أو لبند خارج الخطة */
   addable: QiyasColumn[];
   thresholds: Thresholds;
+  /** عرض السنة كاملة: مجموع الأشهر يُقرأ ولا يُكتب */
+  readOnly?: boolean;
 }) {
   const [error, action, pending] = useActionState(saveQiyas, null);
   const [saved, setSaved] = useState(false);
@@ -156,7 +159,7 @@ export default function QiyasBoard({
       <input type="hidden" name="month" value={month} />
       <input type="hidden" name="scope" value={scope} />
 
-      {addable.length > 0 && (
+      {!readOnly && addable.length > 0 && (
         <div className="card flex flex-wrap items-center gap-2 p-3">
           <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
             أضف عمودًا لكل الطلاب:
@@ -269,6 +272,7 @@ export default function QiyasBoard({
                                 column={c}
                                 value={valueOf(s, c)}
                                 thresholds={thresholds}
+                                readOnly={readOnly}
                                 onChange={(patch) =>
                                   setDraft((cur) => ({
                                     ...cur,
@@ -337,9 +341,15 @@ export default function QiyasBoard({
       </div>
 
       <div className="card flex flex-wrap items-center gap-3 p-4">
+        {readOnly ? (
+          <span className="text-sm font-bold" style={{ color: track.color }}>
+            حصيلة السنة — تُقرأ ولا تُكتب
+          </span>
+        ) : (
         <button className="btn btn-primary text-sm" disabled={pending}>
           {pending ? "جارٍ الحفظ…" : `حفظ قياس ${monthName}`}
         </button>
+        )}
         {error && (
           <span className="text-sm font-semibold" style={{ color: "var(--critical)" }}>
             {error}
@@ -351,8 +361,9 @@ export default function QiyasBoard({
           </span>
         )}
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          المفترض الرمادي من خطة الطالب ولا يُعدَّل · نسبة المحور متوسط نسب بنوده · إجمالي
-          العمود مجموعه لأن وحدته واحدة.
+          {readOnly
+            ? "المفترض والفعلي مجموع أشهر السنة · للتعديل اختر شهرًا."
+            : "المفترض الرمادي من خطة الطالب ولا يُعدَّل · نسبة المحور متوسط نسب بنوده · إجمالي العمود مجموعه لأن وحدته واحدة."}
         </span>
       </div>
     </form>
@@ -369,12 +380,14 @@ function Cells({
   column,
   value,
   thresholds,
+  readOnly,
   onChange,
 }: {
   student: QiyasStudent;
   column: QiyasColumn;
   value: ReturnType<() => { cell: QiyasCell; planned: number; actual: number; pct: number | null }> | null;
   thresholds: Thresholds;
+  readOnly: boolean;
   onChange: (patch: { p?: number; a?: number }) => void;
 }) {
   const key = `${student.id}:${column.part}:${column.courseId ?? 0}`;
@@ -389,6 +402,19 @@ function Cells({
   }
   const fromPlan = value.cell.planned !== undefined;
   const g = GRADE_CLASS[gradeOf(value.pct, thresholds)];
+  if (readOnly) {
+    return (
+      <>
+        <td className="num text-center" style={{ color: "var(--text-muted)" }}>
+          {value.planned || "—"}
+        </td>
+        <td className="num text-center font-semibold">{value.actual || "—"}</td>
+        <td className={`num text-center font-bold ${g}`}>
+          {value.pct === null ? "—" : `${value.pct}%`}
+        </td>
+      </>
+    );
+  }
   return (
     <>
       <td className="text-center">
