@@ -93,6 +93,29 @@ export async function progressCounts(): Promise<Map<number, { done: number; tota
   return new Map(rows.map((r) => [r.student_id, { done: r.done, total: r.total }]));
 }
 
+/** مجموع ما سُجّل لكل طالب في السنة كلّها — لعرض «السنة كاملة» */
+export async function performanceTotals(
+  track?: TrackKey
+): Promise<Map<number, PerformanceRow[]>> {
+  const rows = (await q(
+    `SELECT MIN(f.id)::int AS id, f.student_id, 0 AS month, f.part, f.course_id,
+            SUM(f.planned)::int AS planned, SUM(f.actual)::int AS actual
+       FROM performance f
+       JOIN students s ON s.id = f.student_id
+      ${track ? "WHERE s.track = $1" : ""}
+      GROUP BY f.student_id, f.part, f.course_id
+      ORDER BY f.student_id, f.part, f.course_id`,
+    track ? [track] : []
+  )) as PerformanceRow[];
+  const map = new Map<number, PerformanceRow[]>();
+  for (const r of rows) {
+    const list = map.get(r.student_id);
+    if (list) list.push(r);
+    else map.set(r.student_id, [r]);
+  }
+  return map;
+}
+
 /** إعدادات اللوحة: مفاتيح ونصوص */
 export async function getSettings(): Promise<Record<string, string>> {
   const rows = (await q("SELECT key, value FROM settings")) as { key: string; value: string }[];

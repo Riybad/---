@@ -5,8 +5,8 @@ import { saveThresholds } from "@/app/plan-actions";
 import {
   DEFAULT_THRESHOLDS,
   plannedForMonth,
+  plannedForYear,
   PLAN_MONTHS,
-  type Part,
 } from "@/lib/performance";
 import { memoUnit } from "@/lib/plan";
 import type { Course } from "@/lib/plan";
@@ -17,9 +17,18 @@ import {
   listCourses,
   listStudents,
   performanceOfMonth,
+  performanceTotals,
   planItemsByTrack,
   toPicks,
 } from "@/lib/queries";
+
+/** محاور الشاشة: القرآن وحده، أو المتون وحدها، أو الاثنان */
+const VIEWS = [
+  { key: "all", label: "الكل", groups: ["القرآن", "المتون"] },
+  { key: "quran", label: "القرآن", groups: ["القرآن"] },
+  { key: "mutoon", label: "المتون", groups: ["المتون"] },
+] as const;
+type ViewKey = (typeof VIEWS)[number]["key"];
 
 export const dynamic = "force-dynamic";
 
@@ -53,21 +62,27 @@ function columnOf(course: Course, part: "memo" | "expl"): QiyasColumn {
 export default async function QiyasPage({
   searchParams,
 }: {
-  searchParams: Promise<{ month?: string; track?: string }>;
+  searchParams: Promise<{ month?: string; track?: string; view?: string }>;
 }) {
-  const { month: rawMonth, track: rawTrack } = await searchParams;
+  const { month: rawMonth, track: rawTrack, view: rawView } = await searchParams;
   const track = (isTrack(rawTrack) ? rawTrack : TRACKS[0].key) as TrackKey;
   const info = trackInfo(track);
+  const view = (VIEWS.find((v) => v.key === rawView)?.key ?? "all") as ViewKey;
+  const shown = VIEWS.find((v) => v.key === view)!.groups as readonly string[];
+
+  // «السنة كاملة»: حصيلة الأشهر كلها، تُقرأ ولا تُكتب
+  const wholeYear = rawMonth === "all";
   const asked = Math.trunc(Number(rawMonth ?? 0));
   const month = asked >= 1 && asked <= PLAN_MONTHS.length ? asked : currentMonth();
   const monthInfo = PLAN_MONTHS[month - 1];
+  const periodName = wholeYear ? "السنة كاملة" : monthInfo.name;
 
   const [allCourses, trackCourses, students, items, saved, settings] = await Promise.all([
     listCourses(true),
     listCourses(false, track),
     listStudents(undefined, track),
     planItemsByTrack(track),
-    performanceOfMonth(month, track),
+    wholeYear ? performanceTotals(track) : performanceOfMonth(month, track),
     getSettings(),
   ]);
 
@@ -76,18 +91,17 @@ export default async function QiyasPage({
     amber: Number(settings.qiyas_amber) || DEFAULT_THRESHOLDS.amber,
   };
 
-  // ما توجبه خطة كل طالب هذا الشهر
+  // ما توجبه خطة كل طالب في هذه المدة
   const plannedOf = new Map<number, Map<string, number>>();
   for (const s of students) {
+    const picks = toPicks(items.get(s.id) ?? []);
+    const cadence = (s.cadence || "weekly") as Cadence;
     plannedOf.set(
       s.id,
       info.timeline
-        ? plannedForMonth(
-            allCourses,
-            toPicks(items.get(s.id) ?? []),
-            (s.cadence || "weekly") as Cadence,
-            month
-          )
+        ? wholeYear
+          ? plannedForYear(allCourses, picks, cadence)
+          : plannedForMonth(allCourses, picks, cadence, month)
         : new Map<string, number>()
     );
   }
@@ -111,12 +125,14 @@ export default async function QiyasPage({
       if (wanted.has(`${part}:${course.id}`)) columns.push(columnOf(course, part));
     }
   }
+  // تصفية المحور: القرآن وحده أو المتون وحدها
+  const visible = columns.filter((c) => shown.includes(c.group));
 
   const rows: QiyasStudent[] = students.map((s) => {
     const mine = saved.get(s.id) ?? [];
     const planned = plannedOf.get(s.id) ?? new Map<string, number>();
     const cells: QiyasStudent["cells"] = {};
-    for (const c of columns) {
+    for (const c of visible) {
       const row = mine.find(
         (r) => r.part === c.part && (r.course_id ?? 0) === (c.courseId ?? 0)
       );
@@ -133,14 +149,18 @@ export default async function QiyasPage({
   });
 
   // بنود يمكن للمشرف إضافتها عمودًا لكل الطلاب
-  const addable = trackCourses
-    .flatMap((c) => [
-      c.has_memo ? columnOf(c, "memo") : null,
-      c.has_expl ? columnOf(c, "expl") : null,
-    ])
-    .filter((c): c is QiyasColumn => !!c && !columns.some((x) => x.key === c.key));
+  const addable = shown.includes("المتون")
+    ? trackCourses
+        .flatMap((c) => [
+          c.has_memo ? columnOf(c, "memo") : null,
+          c.has_expl ? columnOf(c, "expl") : null,
+        ])
+        .filter((c): c is QiyasColumn => !!c && !columns.some((x) => x.key === c.key))
+    : [];
 
-  const href = (m: number, t: TrackKey) => `/qiyas?month=${m}&track=${t}`;
+  const href = (m: number | "all", t: TrackKey, v: ViewKey = view) =>
+    `/qiyas?month=${m}&track=${t}&view=${v}`;
+  const here = wholeYear ? ("all" as const) : month;
 
   return (
     <div className="grid gap-5">
@@ -156,7 +176,7 @@ export default async function QiyasPage({
         {TRACKS.map((t) => (
           <Link
             key={t.key}
-            href={href(month, t.key)}
+            href={href(here, t.key)}
             className="rounded-xl border px-4 py-2 text-sm font-bold transition"
             style={{
               borderColor: track === t.key ? t.color : "var(--hairline)",
@@ -171,18 +191,51 @@ export default async function QiyasPage({
 
       <div className="card p-3">
         <div className="mb-2 text-xs font-bold" style={{ color: "var(--text-muted)" }}>
-          شهر القياس
+          المحور
         </div>
         <div className="flex flex-wrap gap-1.5">
+          {VIEWS.map((v) => (
+            <Link
+              key={v.key}
+              href={href(here, track, v.key)}
+              className="rounded-lg border px-3 py-1.5 text-xs font-bold transition"
+              style={{
+                borderColor: view === v.key ? info.color : "var(--hairline)",
+                background: view === v.key ? `${info.color}1a` : "transparent",
+                color: view === v.key ? info.color : "var(--text-secondary)",
+              }}
+            >
+              {v.label}
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <div className="card p-3">
+        <div className="mb-2 text-xs font-bold" style={{ color: "var(--text-muted)" }}>
+          مدة القياس
+        </div>
+        <div className="flex flex-wrap gap-1.5">
+          <Link
+            href={href("all", track)}
+            className="rounded-lg border px-2.5 py-1.5 text-xs font-bold transition"
+            style={{
+              borderColor: wholeYear ? info.color : "var(--hairline)",
+              background: wholeYear ? `${info.color}1a` : "transparent",
+              color: wholeYear ? info.color : "var(--text-secondary)",
+            }}
+          >
+            السنة كاملة
+          </Link>
           {PLAN_MONTHS.map((m) => (
             <Link
               key={m.no}
               href={href(m.no, track)}
               className="rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition"
               style={{
-                borderColor: m.no === month ? info.color : "var(--hairline)",
-                background: m.no === month ? `${info.color}1a` : "transparent",
-                color: m.no === month ? info.color : "var(--text-secondary)",
+                borderColor: !wholeYear && m.no === month ? info.color : "var(--hairline)",
+                background: !wholeYear && m.no === month ? `${info.color}1a` : "transparent",
+                color: !wholeYear && m.no === month ? info.color : "var(--text-secondary)",
               }}
             >
               {m.short}
@@ -190,7 +243,9 @@ export default async function QiyasPage({
           ))}
         </div>
         <p className="mt-2 text-xs num" style={{ color: "var(--text-muted)" }}>
-          {monthInfo.name} · {monthInfo.from.gregorian} → {monthInfo.to.gregorian}
+          {wholeYear
+            ? `حصيلة السنة · ${PLAN_MONTHS[0].from.gregorian} → ${PLAN_MONTHS[PLAN_MONTHS.length - 1].to.gregorian}`
+            : `${monthInfo.name} · ${monthInfo.from.gregorian} → ${monthInfo.to.gregorian}`}
         </p>
       </div>
 
@@ -225,7 +280,14 @@ export default async function QiyasPage({
         </span>
       </form>
 
-      {!info.timeline && (
+      {wholeYear && (
+        <p className="card p-4 text-sm" style={{ color: "var(--text-secondary)" }}>
+          هذه <strong>حصيلة السنة</strong>: المفترض والفعلي مجموع الأشهر كلها، تُقرأ ولا تُكتب.
+          للتسجيل أو التعديل اختر شهرًا من الأعلى.
+        </p>
+      )}
+
+      {!wholeYear && !info.timeline && (
         <p className="card p-4 text-sm" style={{ color: "var(--text-secondary)" }}>
           {info.name} بلا جدول زمني، فلا مفترض يُشتقّ من خطة — اكتب المفترض والفعلي معًا، وأضف
           أعمدة ما يعمل عليه الطلاب هذا الشهر.
@@ -233,14 +295,15 @@ export default async function QiyasPage({
       )}
 
       <QiyasBoard
-        key={`${track}-${month}`}
+        key={`${track}-${here}-${view}`}
         track={info}
         month={month}
-        monthName={monthInfo.name}
-        columns={columns}
+        monthName={periodName}
+        columns={visible}
         students={rows}
         addable={addable}
         thresholds={thresholds}
+        readOnly={wholeYear}
       />
     </div>
   );
