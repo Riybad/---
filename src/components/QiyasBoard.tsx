@@ -3,15 +3,27 @@
 import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
 import { saveQiyas } from "@/app/plan-actions";
-import { ratio, type Part } from "@/lib/performance";
+import {
+  averageRatio,
+  gradeOf,
+  ratio,
+  type Part,
+  type Thresholds,
+} from "@/lib/performance";
 import type { Track } from "@/lib/tracks";
 
-export type QiyasMetric = {
-  part: Part;
-  courseId: number | null;
+/** عمود في المصفوفة: بند واحد تحت محوره */
+export type QiyasColumn = {
+  key: string;
+  group: string;
   label: string;
   unit: string;
-  /** المفترض من الخطة — غير محدّد يعني أنه يُدخَل يدويًا */
+  part: Part;
+  courseId: number | null;
+};
+
+export type QiyasCell = {
+  /** المفترض المشتقّ من الخطة — غير محدّد يعني أنه يُدخَل يدويًا */
   planned?: number;
   savedPlanned: number;
   actual: number;
@@ -20,63 +32,108 @@ export type QiyasMetric = {
 export type QiyasStudent = {
   id: number;
   name: string;
-  metrics: QiyasMetric[];
-  /** بنود يمكن إضافتها لهذا الشهر */
-  addable: { key: string; label: string; unit: string }[];
+  /** مفتاح العمود ← خليّته، وما ليس في خطته لا خليّة له */
+  cells: Record<string, QiyasCell>;
 };
 
-type Row = QiyasMetric & { key: string };
+/** خليّة عمود أضافه المشرف ولم يُسجَّل له شيء بعد */
+const EMPTY: QiyasCell = { savedPlanned: 0, actual: 0 };
 
-/** قياس أداء شهر: الطلاب كلهم في جدول واحد، صفٌّ لكل بند */
+/** صنف لون النسبة — معرّف في globals.css ليعمل في الوضعين الفاتح والداكن */
+const GRADE_CLASS: Record<string, string> = {
+  good: "g-good",
+  warn: "g-warn",
+  bad: "g-bad",
+  none: "g-none",
+};
+
+/** قياس أداء شهر: صفٌّ لكل طالب، وأعمدة مجمّعة في محاور */
 export default function QiyasBoard({
   track,
   month,
   monthName,
+  columns,
   students,
+  addable,
+  thresholds,
 }: {
   track: Track;
   month: number;
   monthName: string;
+  columns: QiyasColumn[];
   students: QiyasStudent[];
+  /** أعمدة يضيفها المشرف لكل الطلاب — لمسار بلا جدول، أو لبند خارج الخطة */
+  addable: QiyasColumn[];
+  thresholds: Thresholds;
 }) {
   const [error, action, pending] = useActionState(saveQiyas, null);
   const [saved, setSaved] = useState(false);
-  const [added, setAdded] = useState<Record<number, Row[]>>({});
+  /** ما يكتبه المشرف الآن — ليحسب النسب قبل الحفظ */
+  const [draft, setDraft] = useState<Record<string, { p?: number; a?: number }>>({});
+  /** أعمدة أضافها المشرف في هذه الجلسة، تُحفظ مع الشاشة */
+  const [extra, setExtra] = useState<QiyasColumn[]>([]);
 
-  const rowsOf = (s: QiyasStudent): Row[] => [
-    ...s.metrics.map((m) => ({ ...m, key: `${s.id}:${m.part}:${m.courseId ?? 0}` })),
-    ...(added[s.id] ?? []),
-  ];
+  const cols = useMemo(() => [...columns, ...extra], [columns, extra]);
+  /** الأعمدة المضافة مفتوحة لكل طالب، فلكلٍّ خليّة فارغة فيها */
+  const rowsOf = (s: QiyasStudent) =>
+    cols.filter((c) => s.cells[c.key] || extra.some((e) => e.key === c.key));
 
   const scope = useMemo(
-    () => students.flatMap((s) => rowsOf(s).map((r) => r.key)).join(","),
-    [students, added]
+    () =>
+      students
+        .flatMap((s) => rowsOf(s).map((c) => `${s.id}:${c.part}:${c.courseId ?? 0}`))
+        .join(","),
+    [students, cols, extra]
   );
 
-  function addRow(s: QiyasStudent, value: string) {
-    const [part, cid] = value.split(":");
-    const found = s.addable.find((a) => a.key === value);
-    if (!found) return;
-    const key = `${s.id}:${part}:${cid}`;
-    setAdded((cur) => {
-      const list = cur[s.id] ?? [];
-      if (list.some((r) => r.key === key) || rowsOf(s).some((r) => r.key === key)) return cur;
-      return {
-        ...cur,
-        [s.id]: [
-          ...list,
-          {
-            key,
-            part: part as Part,
-            courseId: Number(cid),
-            label: found.label,
-            unit: found.unit,
-            savedPlanned: 0,
-            actual: 0,
-          },
-        ],
-      };
-    });
+  /** المحاور وعدد أعمدة كلٍّ منها، لترويسة مدمجة */
+  const groups = useMemo(() => {
+    const out: { name: string; span: number; keys: string[] }[] = [];
+    for (const c of cols) {
+      const last = out[out.length - 1];
+      if (last && last.name === c.group) {
+        last.span++;
+        last.keys.push(c.key);
+      } else out.push({ name: c.group, span: 1, keys: [c.key] });
+    }
+    return out;
+  }, [cols]);
+
+  const fieldKey = (s: QiyasStudent, c: QiyasColumn) => `${s.id}:${c.part}:${c.courseId ?? 0}`;
+
+  function valueOf(s: QiyasStudent, c: QiyasColumn) {
+    const cell = s.cells[c.key] ?? (extra.some((e) => e.key === c.key) ? EMPTY : undefined);
+    if (!cell) return null;
+    const d = draft[fieldKey(s, c)] ?? {};
+    const planned = cell.planned !== undefined ? cell.planned : (d.p ?? cell.savedPlanned);
+    const actual = d.a ?? cell.actual;
+    return { cell, planned, actual, pct: ratio(planned, actual) };
+  }
+
+  function groupPct(s: QiyasStudent, keys: string[]): number | null {
+    return averageRatio(
+      keys.map((k) => {
+        const c = cols.find((x) => x.key === k)!;
+        return valueOf(s, c)?.pct ?? null;
+      })
+    );
+  }
+
+  const studentPct = (s: QiyasStudent) => averageRatio(groups.map((g) => groupPct(s, g.keys)));
+
+  /** إجماليات العمود: تُجمع لأن وحدة العمود واحدة */
+  function columnTotal(c: QiyasColumn) {
+    let planned = 0;
+    let actual = 0;
+    let any = false;
+    for (const s of students) {
+      const v = valueOf(s, c);
+      if (!v) continue;
+      any = true;
+      planned += v.planned;
+      actual += v.actual;
+    }
+    return any ? { planned, actual, pct: ratio(planned, actual) } : null;
   }
 
   if (students.length === 0) {
@@ -86,84 +143,195 @@ export default function QiyasBoard({
       </p>
     );
   }
+  if (cols.length === 0) {
+    return (
+      <p className="card p-8 text-center text-sm" style={{ color: "var(--text-muted)" }}>
+        لا بنود في هذا الشهر — لا خطط لطلاب {track.name} فيه.
+      </p>
+    );
+  }
 
   return (
     <form action={action} onSubmit={() => setSaved(true)} className="grid gap-4">
       <input type="hidden" name="month" value={month} />
       <input type="hidden" name="scope" value={scope} />
 
+      {addable.length > 0 && (
+        <div className="card flex flex-wrap items-center gap-2 p-3">
+          <span className="text-xs font-bold" style={{ color: "var(--text-muted)" }}>
+            أضف عمودًا لكل الطلاب:
+          </span>
+          <select
+            className="input w-auto max-w-64 text-xs"
+            value=""
+            onChange={(e) => {
+              const found = addable.find((a) => a.key === e.target.value);
+              if (found && !extra.some((x) => x.key === found.key)) {
+                setExtra((cur) => [...cur, found]);
+              }
+            }}
+            aria-label="أضف عمودًا"
+          >
+            <option value="">+ بند…</option>
+            {addable
+              .filter((a) => !extra.some((x) => x.key === a.key))
+              .map((a) => (
+                <option key={a.key} value={a.key}>
+                  {a.label}
+                </option>
+              ))}
+          </select>
+        </div>
+      )}
+
       <div className="card">
         <div className="overflow-x-auto">
           <table className="table qiyas">
             <thead>
+              {/* المحاور */}
               <tr>
-                <th className="sticky-col text-start">الطالب</th>
-                <th className="text-start">البند</th>
-                <th>الوحدة</th>
-                <th className="text-center">المفترض</th>
-                <th className="text-center">الفعلي</th>
-                <th className="text-center">النسبة</th>
+                <th rowSpan={3} className="sticky-col text-start">
+                  الطالب
+                </th>
+                {groups.map((g) => (
+                  <th key={g.name} colSpan={g.span * 3 + 1} className="text-center">
+                    {g.name}
+                  </th>
+                ))}
+                <th rowSpan={3} className="qiyas-total text-center">
+                  نسبة
+                  <br />
+                  الطالب
+                </th>
+              </tr>
+              {/* البنود */}
+              <tr>
+                {groups.map((g) => (
+                  <Fragmented key={g.name}>
+                    {g.keys.map((k) => {
+                      const c = cols.find((x) => x.key === k)!;
+                      return (
+                        <th key={k} colSpan={3} className="text-center">
+                          <div className="qiyas-item">{c.label}</div>
+                          <div className="text-[10px] font-normal opacity-75">{c.unit}</div>
+                        </th>
+                      );
+                    })}
+                    <th className="qiyas-group text-center" rowSpan={2}>
+                      نسبة
+                      <br />
+                      المحور
+                    </th>
+                  </Fragmented>
+                ))}
+              </tr>
+              {/* الثلاثي */}
+              <tr>
+                {groups.map((g) => (
+                  <Fragmented key={g.name}>
+                    {g.keys.map((k) => (
+                      <Fragmented key={k}>
+                        <th className="qiyas-sub text-center">المفترض</th>
+                        <th className="qiyas-sub text-center">الفعلي</th>
+                        <th className="qiyas-sub text-center">النسبة</th>
+                      </Fragmented>
+                    ))}
+                  </Fragmented>
+                ))}
               </tr>
             </thead>
-            {students.map((s, i) => {
-              const rows = rowsOf(s);
-              const totalPlanned = rows.reduce((a, r) => a + (r.planned ?? r.savedPlanned), 0);
-              const totalActual = rows.reduce((a, r) => a + r.actual, 0);
-              const pct = ratio(totalPlanned, totalActual);
-              // تظليل متناوب لكل طالب ليُفصَل عمّن قبله مهما طالت بنوده
-              const band = i % 2 === 1 ? "var(--surface-stripe)" : undefined;
-              return (
-                <tbody key={s.id} style={{ borderTop: `2px solid ${track.color}33` }}>
-                  {rows.map((r, j) => (
-                    <QiyasRow
-                      key={r.key}
-                      row={r}
-                      color={track.color}
-                      band={band}
-                      lead={
-                        j > 0 ? null : (
-                          <td
-                            rowSpan={rows.length}
-                            className="sticky-col align-top"
-                            style={band ? { background: band } : undefined}
-                          >
-                            <Link
-                              href={`/students/${s.id}`}
-                              className="whitespace-nowrap font-bold hover:underline"
-                            >
-                              {s.name}
-                            </Link>
-                            {pct !== null && (
-                              <div
-                                className="mt-1 text-xs font-bold num"
-                                style={{ color: pct >= 100 ? "var(--good-text)" : track.color }}
-                              >
-                                {pct}%
-                              </div>
-                            )}
-                            {s.addable.length > 0 && (
-                              <select
-                                className="input qiyas-add mt-2 px-1 py-1 text-[11px]"
-                                value=""
-                                onChange={(e) => addRow(s, e.target.value)}
-                                aria-label={`أضف بندًا لـ${s.name}`}
-                              >
-                                <option value="">+ بند…</option>
-                                {s.addable.map((a) => (
-                                  <option key={a.key} value={a.key}>
-                                    {a.label}
-                                  </option>
-                                ))}
-                              </select>
-                            )}
+
+            <tbody>
+              {students.map((s) => {
+                const total = studentPct(s);
+                const g = GRADE_CLASS[gradeOf(total, thresholds)];
+                return (
+                  <tr key={s.id}>
+                    <td className="sticky-col">
+                      <Link
+                        href={`/students/${s.id}`}
+                        className="whitespace-nowrap font-bold hover:underline"
+                      >
+                        {s.name}
+                      </Link>
+                    </td>
+                    {groups.map((grp) => {
+                      const gp = groupPct(s, grp.keys);
+                      const gs = GRADE_CLASS[gradeOf(gp, thresholds)];
+                      return (
+                        <Fragmented key={grp.name}>
+                          {grp.keys.map((k) => {
+                            const c = cols.find((x) => x.key === k)!;
+                            return (
+                              <Cells
+                                key={k}
+                                student={s}
+                                column={c}
+                                value={valueOf(s, c)}
+                                thresholds={thresholds}
+                                onChange={(patch) =>
+                                  setDraft((cur) => ({
+                                    ...cur,
+                                    [fieldKey(s, c)]: { ...cur[fieldKey(s, c)], ...patch },
+                                  }))
+                                }
+                              />
+                            );
+                          })}
+                          <td className={`qiyas-group num text-center font-bold ${gs}`}>
+                            {gp === null ? "—" : `${gp}%`}
                           </td>
-                        )
-                      }
-                    />
-                  ))}
-                </tbody>
-              );
-            })}
+                        </Fragmented>
+                      );
+                    })}
+                    <td className="qiyas-total num text-center font-extrabold">
+                      <span className={`qiyas-pill ${g}`}>
+                        {total === null ? "—" : `${total}%`}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+
+            {/* الإجماليات */}
+            <tfoot>
+              <tr className="qiyas-foot">
+                <td className="sticky-col font-bold">الإجمالي</td>
+                {groups.map((grp) => (
+                  <Fragmented key={grp.name}>
+                    {grp.keys.map((k) => {
+                      const c = cols.find((x) => x.key === k)!;
+                      const t = columnTotal(c);
+                      const gs = GRADE_CLASS[gradeOf(t?.pct ?? null, thresholds)];
+                      return (
+                        <Fragmented key={k}>
+                          <td className="num text-center">{t ? t.planned : "—"}</td>
+                          <td className="num text-center">{t ? t.actual : "—"}</td>
+                          <td className={`num text-center font-bold ${gs}`}>
+                            {t?.pct === null || !t ? "—" : `${t.pct}%`}
+                          </td>
+                        </Fragmented>
+                      );
+                    })}
+                    <td className="qiyas-group num text-center font-bold">
+                      {(() => {
+                        const all = averageRatio(students.map((s) => groupPct(s, grp.keys)));
+                        return all === null ? "—" : `${all}%`;
+                      })()}
+                    </td>
+                  </Fragmented>
+                ))}
+                <td className="qiyas-total num text-center font-extrabold">
+                  <span className="qiyas-pill">
+                    {(() => {
+                      const all = averageRatio(students.map((s) => studentPct(s)));
+                      return all === null ? "—" : `${all}%`;
+                    })()}
+                  </span>
+                </td>
+              </tr>
+            </tfoot>
           </table>
         </div>
       </div>
@@ -183,78 +351,80 @@ export default function QiyasBoard({
           </span>
         )}
         <span className="text-xs" style={{ color: "var(--text-muted)" }}>
-          المفترض الرمادي مأخوذ من خطة الطالب ولا يُعدَّل، وما سواه تكتبه أنت.
+          المفترض الرمادي من خطة الطالب ولا يُعدَّل · نسبة المحور متوسط نسب بنوده · إجمالي
+          العمود مجموعه لأن وحدته واحدة.
         </span>
       </div>
     </form>
   );
 }
 
-function QiyasRow({
-  row,
-  color,
-  band,
-  lead,
-}: {
-  row: Row;
-  color: string;
-  band?: string;
-  lead: React.ReactNode;
-}) {
-  const fromPlan = row.planned !== undefined;
-  const [actual, setActual] = useState(row.actual || 0);
-  const [planned, setPlanned] = useState(row.savedPlanned || 0);
-  const effective = fromPlan ? row.planned! : planned;
-  const pct = ratio(effective, actual);
-  const cell = band ? { background: band } : undefined;
+/** تجميع خلايا بلا عنصر في الـDOM */
+function Fragmented({ children }: { children: React.ReactNode }) {
+  return <>{children}</>;
+}
 
+function Cells({
+  student,
+  column,
+  value,
+  thresholds,
+  onChange,
+}: {
+  student: QiyasStudent;
+  column: QiyasColumn;
+  value: ReturnType<() => { cell: QiyasCell; planned: number; actual: number; pct: number | null }> | null;
+  thresholds: Thresholds;
+  onChange: (patch: { p?: number; a?: number }) => void;
+}) {
+  const key = `${student.id}:${column.part}:${column.courseId ?? 0}`;
+  if (!value) {
+    return (
+      <>
+        <td className="qiyas-off text-center">—</td>
+        <td className="qiyas-off text-center">—</td>
+        <td className="qiyas-off text-center">—</td>
+      </>
+    );
+  }
+  const fromPlan = value.cell.planned !== undefined;
+  const g = GRADE_CLASS[gradeOf(value.pct, thresholds)];
   return (
-    <tr>
-      {lead}
-      <td className="qiyas-item font-semibold" style={cell}>
-        {row.label}
-      </td>
-      <td style={{ ...cell, color: "var(--text-muted)" }}>{row.unit}</td>
-      <td className="text-center" style={cell}>
+    <>
+      <td className="text-center">
         {fromPlan ? (
           <>
-            <input type="hidden" name={`p:${row.key}`} value={row.planned} />
+            <input type="hidden" name={`p:${key}`} value={value.planned} />
             <span className="num font-bold" style={{ color: "var(--text-muted)" }}>
-              {row.planned}
+              {value.planned}
             </span>
           </>
         ) : (
           <input
-            name={`p:${row.key}`}
+            name={`p:${key}`}
             type="number"
             min={0}
+            defaultValue={value.cell.savedPlanned || ""}
+            onChange={(e) => onChange({ p: Number(e.target.value) || 0 })}
             className="input num qiyas-num text-center"
-            value={planned || ""}
-            onChange={(e) => setPlanned(Number(e.target.value) || 0)}
             placeholder="0"
           />
         )}
       </td>
-      <td className="text-center" style={cell}>
+      <td className="text-center">
         <input
-          name={`a:${row.key}`}
+          name={`a:${key}`}
           type="number"
           min={0}
+          defaultValue={value.cell.actual || ""}
+          onChange={(e) => onChange({ a: Number(e.target.value) || 0 })}
           className="input num qiyas-num text-center"
-          value={actual || ""}
-          onChange={(e) => setActual(Number(e.target.value) || 0)}
           placeholder="0"
         />
       </td>
-      <td className="text-center num" style={cell}>
-        {pct === null ? (
-          <span style={{ color: "var(--text-muted)" }}>—</span>
-        ) : (
-          <span style={{ color: pct >= 100 ? "var(--good-text)" : color, fontWeight: 700 }}>
-            {pct}%
-          </span>
-        )}
+      <td className={`num text-center font-bold ${g}`}>
+        {value.pct === null ? "—" : `${value.pct}%`}
       </td>
-    </tr>
+    </>
   );
 }
