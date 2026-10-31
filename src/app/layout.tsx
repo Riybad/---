@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "نخب — النخب الناشئة (تمكين)",
-  description: "خطط الطلاب السنوية: تقسيم المقررات على السنة بين الحفظ والشرح",
+  title: "صناعة الموهبة",
+  description: "مشروع صناعة الموهبة — خطط الطلاب السنوية وإنجازهم وقياس أدائهم",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
