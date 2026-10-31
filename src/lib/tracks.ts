@@ -30,7 +30,7 @@ export const TRACKS: Track[] = [
     name: "النخب التربوية",
     publicSignup: true,
     timeline: true,
-    color: "#4f7942",
+    color: "#2e2e2e",
     note: "خطة زمنية على سنة كاملة، وللطلاب رابط تسجيل يقسّمون منه بأنفسهم",
   },
   {
@@ -38,7 +38,7 @@ export const TRACKS: Track[] = [
     name: "النخب العلمية",
     publicSignup: false,
     timeline: false,
-    color: "#b4762c",
+    color: "#919191",
     note: "بلا جدول زمني — المقررات قائمة تُنجَز، والمشرف يسجّل الإنجاز",
   },
 ];

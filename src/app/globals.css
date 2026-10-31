@@ -1,88 +1,90 @@
 @import "tailwindcss";
 
-/* هوية «تمكين» — الألوان مأخوذة حرفيًا من ملف الخطة الزمنية (تمكين 48) */
+/* هوية «صناعة الموهبة» — أسود ورمادي #919191 وأبيض، بلا لون مميّز.
+   وتبقى ملوّنةً أشياءُ تحمل معنًى لا هوية: نسب قياس الأداء، وأحداث
+   الخطة الزمنية — فتجريدها من اللون يُذهب فائدتها. */
 :root {
-  --page: #f7f8f1;
+  --page: #f4f4f4;
   --surface-1: #ffffff;
-  --surface-stripe: #f1f4e6;
-  --text-primary: #22280f;
-  --text-secondary: #4d5533;
-  --text-muted: #7d8560;
-  --hairline: #dde3c8;
-  --border-ring: rgba(79, 98, 40, 0.16);
-  --accent: #31869b;          /* مبيت */
-  --accent-strong: #276b7c;
-  --brand-olive: #4f6228;     /* عناوين الملف */
-  --brand-olive-strong: #3d4c1f;
-  --brand-sage: #c2d69b;      /* رؤوس الجداول الفرعية */
-  --brand-sage-soft: #d8e4bc; /* دفعة 42 */
-  --brand-peach: #fabf8f;     /* شريط «النخب الناشئة (تمكين)» */
-  --brand-amber: #974806;     /* نص أيام الأسبوع */
-  --brand-gold: #ffc000;      /* الأيام القرآنية */
-  --brand-logo: #c8a840;      /* ذهب شعار نخب */
-  --brand-logo-soft: #e0cf95;
-  --brand-lavender: #e4dfec;  /* لقاءات تمكين */
-  --brand-red: #953734;       /* ملتقى */
-  --table-head: #4f6228;
+  --surface-stripe: #efefef;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #8a8a8a;
+  --hairline: #dcdcdc;
+  --border-ring: rgba(0, 0, 0, 0.12);
+  --accent: #2e2e2e;
+  --accent-strong: #000000;
+  --brand-olive: #2e2e2e;          /* اللون الأساس: أزرار وعناوين */
+  --brand-olive-strong: #000000;
+  --brand-sage: #d2d2d2;
+  --brand-sage-soft: #e6e6e6;
+  --brand-peach: #d8d8d8;
+  --brand-amber: #6b6b6b;
+  --brand-gold: #919191;
+  --brand-logo: #919191;           /* فضّي الهوية */
+  --brand-logo-soft: #c4c4c4;
+  --brand-lavender: #e4e4e4;
+  --brand-red: #8d241a;
+  --table-head: #2e2e2e;
   --table-head-text: #ffffff;
-  --totals-bg: #d8e4bc;
-  --good: #4f6228;
-  --good-text: #3d4c1f;
-  --warning: #ffc000;
-  --serious: #fabf8f;
-  --critical: #953734;
+  --totals-bg: #e6e6e6;
+  --good: #35431a;
+  --good-text: #35431a;
+  --warning: #c9a227;
+  --serious: #d8a06a;
+  --critical: #8d241a;
   /* أسماء قديمة ما زالت مستعملة في بعض الأنماط */
-  --brand-orange: #974806;
-  --brand-orange-strong: #7d3b05;
-  --brand-green: #4f6228;
+  --brand-orange: #6b6b6b;
+  --brand-orange-strong: #4a4a4a;
+  --brand-green: #2e2e2e;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --page: #14180c;
-    --surface-1: #1d2213;
-    --surface-stripe: #242a17;
-    --text-primary: #f0f3e4;
-    --text-secondary: #cbd3b1;
-    --text-muted: #99a37a;
-    --hairline: #343c22;
-    --border-ring: rgba(216, 228, 188, 0.14);
-    --accent: #63b6c8;
-    --accent-strong: #8ccddb;
-    --brand-olive: #8fac5c;
-    --brand-olive-strong: #a6c274;
-    --brand-sage: #6f8a3f;
-    --brand-sage-soft: #4a5c2a;
-    --brand-peach: #d9a273;
-    --brand-amber: #d38a3e;
-    --brand-lavender: #4a4459;
-    --brand-logo: #d9bc63;
-    --brand-logo-soft: #8a7433;
-    --table-head: #3d4c1f;
-    --totals-bg: #2f3a1c;
+    --page: #121212;
+    --surface-1: #1c1c1c;
+    --surface-stripe: #242424;
+    --text-primary: #f2f2f2;
+    --text-secondary: #c9c9c9;
+    --text-muted: #8f8f8f;
+    --hairline: #333333;
+    --border-ring: rgba(255, 255, 255, 0.14);
+    --accent: #e4e4e4;
+    --accent-strong: #ffffff;
+    --brand-olive: #d8d8d8;
+    --brand-olive-strong: #ffffff;
+    --brand-sage: #4a4a4a;
+    --brand-sage-soft: #333333;
+    --brand-peach: #5a5a5a;
+    --brand-amber: #b0b0b0;
+    --brand-lavender: #3a3a3a;
+    --brand-logo: #adadad;
+    --brand-logo-soft: #6b6b6b;
+    --table-head: #2a2a2a;
+    --totals-bg: #2c2c2c;
     --good-text: #9ec471;
-    --brand-orange: #d38a3e;
-    --brand-orange-strong: #e0a35e;
-    --brand-green: #8fac5c;
+    --brand-orange: #b0b0b0;
+    --brand-orange-strong: #cfcfcf;
+    --brand-green: #d8d8d8;
   }
 }
 
 /* الصفحات العامة (الطلاب وتسجيل الدخول) تبقى بألوان النهار دائمًا */
 .sunny {
-  --page: #f7f8f1;
+  --page: #f4f4f4;
   --surface-1: #ffffff;
-  --text-primary: #22280f;
-  --text-secondary: #4d5533;
-  --text-muted: #7d8560;
-  --hairline: #dde3c8;
-  --border-ring: rgba(79, 98, 40, 0.2);
-  --accent: #31869b;
-  --brand-olive: #4f6228;
-  --brand-logo: #c8a840;
-  --brand-logo-soft: #e0cf95;
-  --brand-orange: #974806;
-  --brand-green: #4f6228;
-  --good-text: #3d4c1f;
+  --text-primary: #1a1a1a;
+  --text-secondary: #4a4a4a;
+  --text-muted: #8a8a8a;
+  --hairline: #dcdcdc;
+  --border-ring: rgba(0, 0, 0, 0.14);
+  --accent: #2e2e2e;
+  --brand-olive: #2e2e2e;
+  --brand-logo: #919191;
+  --brand-logo-soft: #c4c4c4;
+  --brand-orange: #6b6b6b;
+  --brand-green: #2e2e2e;
+  --good-text: #35431a;
   color: var(--text-primary);
 }
 
@@ -338,23 +340,43 @@ body {
   font-weight: 800;
 }
 
-/* شريط العنوان بلون «النخب الناشئة (تمكين)» في الملف */
+/* شريط العنوان بفضّي الهوية */
 .tamkeen-band {
-  background: linear-gradient(90deg, var(--brand-peach), var(--brand-logo-soft));
-  color: #22280f;
+  background: linear-gradient(90deg, var(--brand-logo), var(--brand-logo-soft));
+  color: #ffffff;
   font-weight: 800;
   border-radius: 10px;
   padding: 0.5rem 1rem;
 }
 
-/* خلفية الصفحات العامة — رسمة الموسم */
+/* خلفية الصفحات العامة — تدرّج رمادي هادئ من الهوية */
 .sunny-bg {
   background:
-    radial-gradient(1200px 600px at 80% -10%, rgba(250, 191, 143, 0.35), transparent 60%),
-    radial-gradient(900px 500px at 0% 100%, rgba(194, 214, 155, 0.45), transparent 60%),
+    radial-gradient(1200px 600px at 80% -10%, rgba(145, 145, 145, 0.22), transparent 60%),
+    radial-gradient(900px 500px at 0% 100%, rgba(145, 145, 145, 0.16), transparent 60%),
     var(--page);
 }
 .sunny-card {
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(2px);
+}
+
+/* نسختا الشعار: السوداء للخلفية الفاتحة والبيضاء للداكنة */
+.logo-dark {
+  display: none;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .logo-light {
+    display: none;
+  }
+  :root:not([data-theme="light"]) .logo-dark {
+    display: inline-block;
+  }
+}
+/* الصفحات العامة نهارية دائمًا، فشعارها الأسود دومًا */
+.sunny .logo-light {
+  display: inline-block;
+}
+.sunny .logo-dark {
+  display: none;
 }

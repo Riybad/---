@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Logo from "@/components/Logo";
 import { requireAdmin } from "@/lib/auth";
 import { logout } from "@/app/actions";
 
@@ -20,9 +21,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         style={{ borderColor: "var(--hairline)" }}
       >
         <Link href="/" className="flex items-center gap-3">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-nokhab.png" alt="شعار نخب" className="h-11 w-auto" />
-          <span className="text-lg font-bold">نخب — لوحة الطلاب</span>
+          <Logo className="h-10 w-auto" />
+          <span className="text-lg font-bold">صناعة الموهبة — لوحة الطلاب</span>
         </Link>
         <nav className="flex flex-wrap gap-1 text-sm font-semibold">
           {NAV.map(([href, label]) => (

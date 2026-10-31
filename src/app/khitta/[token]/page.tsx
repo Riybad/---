@@ -1,3 +1,4 @@
+import Logo from "@/components/Logo";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -15,12 +16,12 @@ import { getStudentByToken, listCourses, listPlanItems, toPicks } from "@/lib/qu
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "خطتي السنوية — نخب",
+  title: "خطتي السنوية — صناعة الموهبة",
   description: "خطة الطالب السنوية: المقررات موزّعة على السنة بين الحفظ والشرح.",
   openGraph: {
-    title: "خطتي السنوية — نخب",
+    title: "خطتي السنوية — صناعة الموهبة",
     description: "خطة الطالب السنوية: المقررات موزّعة على السنة بين الحفظ والشرح.",
-    images: ["/logo-nokhab.png"],
+    images: ["/icon-talent.png"],
   },
 };
 
@@ -54,8 +55,7 @@ export default async function StudentPlanPage({
       <main className="sunny sunny-bg min-h-screen p-4">
         <div className="mx-auto grid w-full max-w-3xl gap-4">
           <div className="card sunny-card p-6 text-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-nokhab.png" alt="شعار نخب" className="mx-auto mb-3 h-16 w-auto" />
+            <Logo mark={false} className="mx-auto mb-3 h-24 w-auto" />
             <h1 className="page-title text-xl">مقررات {student.name}</h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               {trackInfo(track).name}
@@ -124,8 +124,7 @@ export default async function StudentPlanPage({
       <main className="sunny sunny-bg min-h-screen p-4">
         <div className="mx-auto w-full max-w-3xl">
           <div className="card sunny-card mb-4 p-6 text-center">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo-nokhab.png" alt="شعار نخب" className="mx-auto mb-3 h-16 w-auto" />
+            <Logo mark={false} className="mx-auto mb-3 h-24 w-auto" />
             <h1 className="page-title text-xl">خطة {student.name} السنوية</h1>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
               {trackInfo(track).name}
