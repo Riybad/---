@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 };
 
 export default async function KhittaPage() {
-  // الرابط العام يخدم مسارًا واحدًا؛ ومسار النخب العلمية يُدار من اللوحة
+  // الرابط العام يخدم مسارًا واحدًا؛ ومسار الموهبة الشرعية يُدار من اللوحة
   const track = trackInfo(PUBLIC_TRACK);
   const courses = await listCourses(false, PUBLIC_TRACK);
 

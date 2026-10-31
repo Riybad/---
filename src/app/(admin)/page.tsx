@@ -76,8 +76,8 @@ export default async function DashboardPage() {
           <div className="min-w-0">
             <h2 className="font-bold">تصدير إكسل</h2>
             <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
-              لكل مسار ملفه: <strong>النخب التربوية</strong> خططها الزمنية صفًا لكل فترة ومقرر،
-              و<strong>النخب العلمية</strong> إنجاز طلابها على مقرراتها. أما الطالب الواحد فمن
+              لكل مسار ملفه: <strong>الموهبة التربوية</strong> خططها الزمنية صفًا لكل فترة ومقرر،
+              و<strong>الموهبة الشرعية</strong> إنجاز طلابها على مقرراتها. أما الطالب الواحد فمن
               صفحته أو من أزرار التصدير في جدول الطلاب.
             </p>
           </div>
